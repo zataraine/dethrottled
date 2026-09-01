@@ -1,0 +1,96 @@
+# The whole stack, self-hosted. Nothing in here calls an API you need a key
+# for, and with the default settings nothing leaves your network except the
+# fetches you asked for.
+#
+#     docker compose up -d
+#     curl localhost:8787/health
+#
+# Three services, and the reason there are three:
+#
+#   dethrottled  the search/fetch/extract API
+#   searxng      real search engines, queried from your machine, not a hosted
+#                aggregator with a quota
+#   crawl4ai     headless Chromium, so a JavaScript page can be read locally
+#                instead of by sending its URL to somebody else's reader
+#
+# That last one is the point of this file. Without a renderer, the only way to
+# read a JS-rendered page is the external r.jina.ai tier -- so `pip install`
+# leaves it on. Here it is off (DETHROTTLED_ENABLE_JINA=0) because Crawl4AI
+# does that job in-network. Turn it back on if you want the extra coverage.
+
+name: dethrottled
+
+services:
+  dethrottled:
+    build: .
+    image: dethrottled:local
+    restart: unless-stopped
+    # Loopback ONLY. This service fetches arbitrary URLs on behalf of whoever
+    # can reach it, which makes it a server-side request forgery engine for
+    # anyone who can talk to it. Exposing it beyond localhost is a deliberate
+    # decision -- read SECURITY.md, then put an authenticating proxy in front.
+    ports:
+      - "127.0.0.1:${DETHROTTLED_PORT:-8787}:8787"
+    environment:
+      DETHROTTLED_SEARXNG_URL: http://searxng:8080
+      DETHROTTLED_CRAWL4AI_URL: http://crawl4ai:11235
+      DETHROTTLED_CRAWL4AI_API: crawl
+      DETHROTTLED_CRAWL4AI_TOKEN: "${CRAWL4AI_TOKEN:-dethrottled-compose-local}"
+      DETHROTTLED_ENABLE_JINA: "${DETHROTTLED_ENABLE_JINA:-0}"
+      DETHROTTLED_DATA_DIR: /data
+      # MODEL_DIR is deliberately NOT set here. The image bakes the weights
+      # into /opt/dethrottled/models, and pointing this at /data/models would
+      # aim it at the volume instead -- where there are no models, so the
+      # corpus would report itself unavailable on a stack that has everything
+      # it needs.
+    volumes:
+      - dethrottled-data:/data
+    depends_on:
+      searxng:
+        condition: service_started
+      crawl4ai:
+        condition: service_started
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    volumes:
+      - ./docker/searxng:/etc/searxng:ro
+    environment:
+      # Only ever reached from the dethrottled container on the compose
+      # network, so this is not a public base URL.
+      SEARXNG_BASE_URL: http://searxng:8080/
+    # Deliberately NOT published to the host. Nothing outside this compose
+    # network needs to reach it, and an open SearXNG is an open proxy.
+    expose:
+      - "8080"
+
+  crawl4ai:
+    image: unclecode/crawl4ai:latest
+    restart: unless-stopped
+    environment:
+      # Upstream binds to loopback ONLY unless a credential is present -- its
+      # entrypoint chooses gunicorn's bind address from whether this is set.
+      # That is a sound default: a renderer reachable on a network with no auth
+      # is an open proxy that also runs a browser.
+      #
+      # This token guards container-to-container traffic on a private bridge
+      # network. The service is `expose`d and never published to the host, so
+      # nothing outside this compose project can reach it either way -- but set
+      # CRAWL4AI_TOKEN in .env anyway if you would rather not run a default.
+      CRAWL4AI_API_TOKEN: "${CRAWL4AI_TOKEN:-dethrottled-compose-local}"
+    expose:
+      - "11235"
+    # Chromium needs more shared memory than Docker's 64MB default. Renders
+    # fail in ways that look like timeouts rather than like out-of-memory,
+    # which is a slow afternoon if you have not seen it before.
+    shm_size: 1gb
+    # A persistent headless browser accumulates memory over days. The cap keeps
+    # one runaway page from taking the host down with it.
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+volumes:
+  dethrottled-data:

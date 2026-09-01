@@ -1,0 +1,138 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dethrottled"
+version = "0.1.0"
+description = "Zero-API web search, fetch and extraction. No keys, no quota, no metered pool."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["search", "scraping", "extraction", "rag", "web", "no-api-key"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Text Processing :: Markup :: HTML",
+]
+
+# The base install fetches, extracts and searches. Everything past that is an
+# extra, because the heavy pieces are exactly the ones most callers never use:
+# onnxruntime and transformers are a few hundred megabytes to make a feature
+# optional, and pymupdf is not free either. Every optional import in the source
+# is guarded, so an absent extra removes a capability rather than breaking one.
+dependencies = [
+    "requests>=2.31",
+    "feedparser>=6.0",
+    # Search: one pure-Python dependency covering a dozen keyless engines.
+    "ddgs>=9.0",
+    # Extraction cascade, in order. All three ship aarch64 wheels, so a
+    # Raspberry Pi installs them rather than compiling them.
+    "trafilatura>=1.8",
+    "resiliparse>=1.0",
+    "selectolax>=0.3.21",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+]
+
+[project.urls]
+Homepage = "https://github.com/zataraine/dethrottled"
+Repository = "https://github.com/zataraine/dethrottled"
+Issues = "https://github.com/zataraine/dethrottled/issues"
+
+[project.optional-dependencies]
+# Documents as text: PDF, the Office formats, OpenDocument, EPUB and RTF.
+#
+# Every one of these is a direct parser. MarkItDown was measured as the
+# alternative and rejected: `markitdown[all]` is 375MB across 52 packages and
+# pulls in four Azure SDKs and a neural network (magika) to identify file
+# types -- in a tool whose entire claim is that it needs no account and no key.
+# It also wraps these same libraries, so it would be an abstraction layer over
+# dependencies we already have. File typing here is forty lines of signature
+# comparison and costs under a microsecond on the common path.
+documents = [
+    "pymupdf>=1.24",
+    "openpyxl>=3.1",
+    "python-docx>=1.1",
+    "python-pptx>=0.6.23",
+    "xlrd>=2.0",
+    # OpenDocument. Pure Python (an sdist, but nothing to compile) and what
+    # most European public bodies publish in.
+    "odfpy>=1.4",
+    # An EPUB is a zip of XHTML, read with the same extractor as a web page.
+    "ebooklib>=0.18",
+    # RTF, tiny and pure Python.
+    "striprtf>=0.0.26",
+]
+
+# Video pages, read as their caption track.
+#
+# Keyless and accountless, but it talks to YouTube's internal endpoint and
+# YouTube blocks datacentre address ranges hard -- so this works from a machine
+# you own and often will not from a cloud host. Separated from `documents` so
+# that limitation is an explicit choice rather than something that arrives
+# with a spreadsheet parser.
+media = ["youtube-transcript-api>=1.0"]
+# The semantic corpus and the multilingual reranker. Also needs weights --
+# see scripts/fetch-models.sh.
+semantic = [
+    "numpy>=1.24",
+    "onnxruntime>=1.17",
+    "transformers>=4.40",
+]
+# The English cross-encoder. flashrank downloads its own model on first use.
+rerank = ["flashrank>=0.2.9"]
+# A real Chrome TLS fingerprint without a browser. Worth its place: it is the
+# only thing that got past one host's blocking in testing, and it is FASTER
+# than plain requests, not slower. aarch64 wheels available.
+tls = ["curl_cffi>=0.7"]
+all = ["dethrottled[documents,media,semantic,rerank,tls]"]
+dev = ["pytest>=8.0", "httpx>=0.27", "ruff>=0.4"]
+
+[project.scripts]
+dethrottled = "dethrottled.server:main"
+dethrottled-health = "dethrottled.health:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: hits the live internet; excluded from CI with -m 'not network'",
+]
+
+[tool.ruff]
+# 100, not 88. The bulk of this code sits comfortably under 80; the exceptions
+# are all format strings that read worse broken across two lines than they do
+# slightly wide. Picking a limit the code already meets beats reformatting
+# working code to satisfy a number.
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "PIE", "RUF"]
+ignore = [
+    # This codebase uses %-formatting throughout, deliberately and
+    # consistently. Rewriting 52 call sites to f-strings would be churn, and a
+    # half-converted file is worse than either style applied whole.
+    "UP031",
+    # Broad excepts are the design here, not an oversight: every tier, every
+    # extractor and every optional model is meant to fail soft and degrade to
+    # the next thing. They are individually commented where the reason is not
+    # obvious.
+    "BLE001", "S110", "S112",
+    # zip() without strict= is fine where the two sequences are built together
+    # three lines above.
+    "B905",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests unpack tuples they only half-use, and say so.
+"tests/*" = ["RUF059"]

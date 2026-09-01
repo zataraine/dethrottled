@@ -1,0 +1,51 @@
+# What must NOT reach the build daemon.
+#
+# Without this the context was 651MB, 650MB of it a host virtualenv. The
+# Dockerfile copies selectively so none of it was baked into the image, but it
+# was uploaded on every build -- and one future `COPY . .` would ship somebody's
+# laptop virtualenv inside a released image. The image must be built from
+# source and nothing else.
+
+# Host environments. These contain compiled artefacts for the machine that
+# created them and are actively wrong inside a container.
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# History and tooling.
+.git/
+.github/
+.gitignore
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local state. Caches hold other people's pages; models are hundreds of
+# megabytes and belong in a volume, not a layer.
+.env
+var/
+models/
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+domain-health.json
+engine-health.json
+
+# Not needed to build or run the service.
+tests/
+docker/
+examples/
+*.md
+!README.md
+
+.DS_Store
+.idea/
+.vscode/

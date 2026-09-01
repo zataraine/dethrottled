@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# State. All of it is disposable and none of it belongs in git: the caches hold
+# other people's page bodies, the corpus holds vectors of them, and the engine
+# health file is machine-local.
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+var/
+models/
+.cf-worker-token
+engine-health.json
+
+.DS_Store
+.idea/
+.vscode/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/

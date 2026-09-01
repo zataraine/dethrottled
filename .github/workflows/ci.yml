@@ -1,0 +1,121 @@
+# The point of this matrix is the `runs-on` column. "Works on ARM" is a claim
+# people make about pure-Python projects without checking, and it is wrong often
+# enough -- a wheel that only ships x86_64, a native dependency that needs a
+# compiler on aarch64 -- to be worth proving on real hardware rather than
+# asserting in a README.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          # The base install has to work where the heavy extras may not. These
+          # two run without [all] on purpose: if an optional import is not
+          # properly guarded, this is where it shows up.
+          - os: macos-latest
+            python: "3.12"
+            extras: dev
+          - os: windows-latest
+            python: "3.12"
+            extras: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[${{ matrix.extras || 'all,dev' }}]"
+
+      - name: Import every module
+        # Catches a syntax error or a bad relative import on a platform the
+        # tests might otherwise skip past.
+        shell: bash
+        run: python -c "import dethrottled, dethrottled.server, dethrottled.fetch, dethrottled.search, dethrottled.rank, dethrottled.extract, dethrottled.cache, dethrottled.paths, dethrottled.domains, dethrottled.media, dethrottled.documents, dethrottled.health; print(dethrottled.__version__)"
+
+      - name: Tests
+        # -m "not network" is the whole reason this suite is worth having in CI:
+        # nothing here touches the live web, so a failure is this project's
+        # fault and not a publisher having a bad morning.
+        shell: bash
+        run: pytest -q -m "not network"
+
+      - name: Server starts and answers with nothing configured
+        # The degradation promise, tested. No SearXNG, no renderer, no relay --
+        # it must still come up and serve.
+        shell: bash
+        env:
+          DETHROTTLED_SEARXNG_URL: ""
+          DETHROTTLED_CRAWL4AI_URL: ""
+          DETHROTTLED_ENABLE_JINA: "0"
+        run: |
+          python -m dethrottled.server --port 8787 &
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8787/health && break || sleep 1
+          done
+          curl -fsS http://127.0.0.1:8787/health
+          curl -fsS http://127.0.0.1:8787/v2/capabilities
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check src tests
+
+  no-secrets:
+    # A leak removed in a later commit is still in the history, so this looks at
+    # the whole tree rather than the diff.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No private infrastructure in the tree
+        run: |
+          if grep -rniE '192\.168\.|10\.[0-9]+\.[0-9]+\.[0-9]+|\.workers\.dev|/home/[a-z]+/\.openclaw' \
+               --exclude-dir=.git --exclude-dir=.github . ; then
+            echo "::error::private address or path found"
+            exit 1
+          fi
+          echo "clean"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose file is valid
+        run: docker compose config --quiet
+      - name: Image builds
+        run: docker build -t dethrottled:ci .
+      - name: Image runs and answers
+        run: |
+          docker run -d --name d -p 8787:8787 dethrottled:ci
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8787/health && break || sleep 2
+          done
+          curl -fsS http://127.0.0.1:8787/health
+          docker rm -f d

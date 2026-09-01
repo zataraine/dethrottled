@@ -1,0 +1,50 @@
+# SearXNG configuration for dethrottled.
+#
+# Two things here are not the SearXNG defaults, and both matter:
+#
+#   1. `formats` includes json. SearXNG serves HTML only out of the box, so
+#      without this every API query returns a 403 and the search tier looks
+#      broken rather than misconfigured.
+#   2. the limiter is off. It exists to stop strangers hammering a public
+#      instance; this one is not published to the host and is reachable only
+#      from the dethrottled container, so the only thing it can rate-limit is
+#      you.
+
+use_default_settings: true
+
+general:
+  instance_name: "dethrottled"
+  # Nothing here should be advertising itself.
+  enable_metrics: false
+
+server:
+  # Overridden by SEARXNG_SECRET in compose if you set one. Change it if you
+  # ever expose this beyond the compose network.
+  secret_key: "dethrottled-local-only-change-me-if-exposed"
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  # json is the one that matters. csv and rss cost nothing to leave on.
+  formats:
+    - html
+    - json
+
+# Engines are left at the SearXNG defaults on purpose.
+#
+# The instinct is to pick a tuned handful, and it is the wrong instinct: free
+# search engines rate-limit and CAPTCHA self-hosted instances as a matter of
+# routine, and SearXNG suspends an engine when it gets one. Benchmarking this
+# stack knocked out four engines within an hour and left two answering. A broad
+# default list degrades -- suspended engines simply contribute nothing and heal
+# on their own -- while a narrow one turns a single CAPTCHA into an outage.
+#
+# If you do want to narrow it, prefer the news endpoints: they are consistently
+# the ones that survive, presumably because they are not what anti-bot systems
+# guard most closely.
+#
+# engines:
+#   - name: google
+#     disabled: true
