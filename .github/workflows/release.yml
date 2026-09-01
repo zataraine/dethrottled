@@ -1,0 +1,87 @@
+# Publish to PyPI, on a published release only.
+#
+# Deliberately NOT part of ci.yml. That workflow runs on every push and every
+# pull request, so wiring publishing into it would attempt an upload on every
+# commit -- and PyPI refuses a re-upload of an existing version, so the failure
+# would be permanent noise on a workflow you need to stay meaningful.
+#
+# Uses Trusted Publishing (OIDC): GitHub proves this workflow's identity to
+# PyPI directly, so there is no API token to store, leak or rotate. That is
+# also why `id-token: write` is required and why the environment is named --
+# both are what PyPI checks the claim against.
+name: release
+
+on:
+  release:
+    types: [published]
+  # Manual, for a dry run into TestPyPI before the real thing.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to publish
+        required: true
+        default: testpypi
+        type: choice
+        options: [testpypi, pypi]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: Check the metadata PyPI will render
+        # A broken long_description is rejected at upload, after the version
+        # number has already been burned. Catch it here instead.
+        run: twine check dist/*
+
+      - name: The built package must actually import
+        # Installing the wheel in a clean environment is the only check that
+        # the packaging is right -- `pip install -e .` passes with a broken
+        # MANIFEST because the source tree is still there.
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/pip install --quiet dist/*.whl
+          /tmp/fresh/bin/python -c "import dethrottled; print(dethrottled.__version__)"
+          /tmp/fresh/bin/dethrottled --help > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # The name PyPI's trusted publisher is configured against. Set the same
+    # value in the PyPI publisher settings.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/dethrottled
+    permissions:
+      # Required for Trusted Publishing. Nothing else needs write access.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI
+        if: github.event_name == 'release' || inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1

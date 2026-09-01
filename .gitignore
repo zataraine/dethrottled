@@ -26,3 +26,6 @@ engine-health.json
 .coverage
 .coverage.*
 htmlcov/
+dist/
+*.whl
+*.tar.gz
