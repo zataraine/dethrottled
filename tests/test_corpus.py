@@ -188,6 +188,7 @@ def test_matrix_is_cached_between_reads():
     assert corpus.matrix() is first, "should not be rebuilt on every read"
 
 
+@needs_numpy
 def test_empty_corpus_returns_no_matrix():
     matrix, meta = c.Corpus().matrix()
     assert matrix is None and meta == []

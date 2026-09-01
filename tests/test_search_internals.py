@@ -4,6 +4,7 @@ This module was the least-tested part of the stack and it is the one that
 decides what the rest of the pipeline ever sees. Nothing here touches the
 network -- every function below is pure, or reads a file this test owns.
 """
+import pathlib
 import time
 
 import pytest
@@ -107,13 +108,34 @@ def test_failures_accumulate_a_count():
     assert fs._load_health()["bing"]["fails"] == 2
 
 
-def test_unwritable_health_file_is_not_fatal(monkeypatch, tmp_path):
-    """Health is an optimisation. Losing it must not take searching with it."""
-    monkeypatch.setenv("DETHROTTLED_ENGINE_HEALTH", str(tmp_path / "nope" / "x.json"))
-    fs._save_health({"a": {"at": 1}})          # parent dir is created
-    monkeypatch.setenv("DETHROTTLED_ENGINE_HEALTH", "/proc/cannot/write.json")
+def test_a_failed_health_write_is_not_fatal(monkeypatch, tmp_path):
+    """Health is an optimisation. Losing it must not take searching with it.
+
+    The failure is injected at the write rather than by choosing an unwritable
+    path, because what counts as unwritable differs by platform -- and the
+    promise being made here is about not propagating the error, not about which
+    paths a given OS rejects.
+    """
+    def refuse(*a, **k):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(pathlib.Path, "write_text", refuse)
     fs._save_health({"a": {"at": 1}})          # must not raise
+
+
+def test_an_unreadable_health_file_reads_as_empty(tmp_path, monkeypatch):
+    """Corrupt or truncated JSON is a lost optimisation, not an error."""
+    path = tmp_path / "engines.json"
+    path.write_text("{not valid json", encoding="utf-8")
+    monkeypatch.setenv("DETHROTTLED_ENGINE_HEALTH", str(path))
     assert fs._load_health() == {}
+
+
+def test_health_survives_a_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setenv("DETHROTTLED_ENGINE_HEALTH",
+                       str(tmp_path / "sub" / "engines.json"))
+    fs._save_health({"a": {"at": 1}})          # parent directory is created
+    assert fs._load_health() == {"a": {"at": 1}}
 
 
 # ── bing's redirector ────────────────────────────────────────────────────────
