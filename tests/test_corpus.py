@@ -31,6 +31,17 @@ needs_model = pytest.mark.skipif(not have_model(),
                                  reason="embedding weights not downloaded")
 
 
+def have_numpy():
+    import importlib.util
+    return importlib.util.find_spec("numpy") is not None
+
+
+# Vectors are numpy arrays, so every test that stores or reads one needs it.
+# numpy lives in the `semantic` extra, and the base install deliberately does
+# not have it -- passage splitting is pure Python and still runs there.
+needs_numpy = pytest.mark.skipif(not have_numpy(), reason="numpy not installed")
+
+
 # ── passage splitting ────────────────────────────────────────────────────────
 
 def test_short_text_makes_no_passages():
@@ -69,6 +80,7 @@ def test_whitespace_is_normalised():
 
 # ── vector packing ───────────────────────────────────────────────────────────
 
+@needs_numpy
 def test_vectors_round_trip_through_bytes():
     import numpy as np
     original = [0.5, -0.25, 0.125]
@@ -76,6 +88,7 @@ def test_vectors_round_trip_through_bytes():
     assert np.allclose(restored, original)
 
 
+@needs_numpy
 def test_json_vectors_are_still_readable():
     """Rows written before the switch to raw float32 must still load."""
     import json
@@ -109,6 +122,7 @@ def count(corpus):
     return corpus._db.execute("SELECT COUNT(*) FROM passages").fetchone()[0]
 
 
+@needs_numpy
 def test_prune_removes_rows_past_the_age_limit():
     corpus = c.Corpus()
     insert(corpus, 5, age_days=c.RETENTION_DAYS + 10)
@@ -117,6 +131,7 @@ def test_prune_removes_rows_past_the_age_limit():
     assert count(corpus) == 5
 
 
+@needs_numpy
 def test_prune_keeps_everything_inside_the_limit():
     corpus = c.Corpus()
     insert(corpus, 10, age_days=1)
@@ -124,6 +139,7 @@ def test_prune_keeps_everything_inside_the_limit():
     assert count(corpus) == 10
 
 
+@needs_numpy
 def test_prune_enforces_the_cap_oldest_first(monkeypatch):
     monkeypatch.setattr(c, "MAX_PASSAGES", 8)
     corpus = c.Corpus()
@@ -135,6 +151,7 @@ def test_prune_enforces_the_cap_oldest_first(monkeypatch):
     assert oldest > time.time() - 40 * 86400
 
 
+@needs_numpy
 def test_prune_drops_the_cached_matrix():
     """Deletion takes rows out of the middle of the array; the cache cannot be
     patched cheaply and must be rebuilt."""
@@ -146,6 +163,7 @@ def test_prune_drops_the_cached_matrix():
     assert corpus._cached is None
 
 
+@needs_numpy
 def test_stats_reports_per_model():
     corpus = c.Corpus()
     insert(corpus, 4)
@@ -162,6 +180,7 @@ def test_the_cap_is_pi_sized():
 
 # ── the cached matrix ────────────────────────────────────────────────────────
 
+@needs_numpy
 def test_matrix_is_cached_between_reads():
     corpus = c.Corpus()
     insert(corpus, 10)

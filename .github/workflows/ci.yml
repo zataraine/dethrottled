@@ -113,9 +113,9 @@ jobs:
         run: docker build -t dethrottled:ci .
       - name: Image runs and answers
         run: |
-          docker run -d --name d -p 8787:8787 dethrottled:ci
+          docker run -d --name dethrottled-ci -p 8787:8787 dethrottled:ci
           for i in $(seq 1 60); do
             curl -fsS http://127.0.0.1:8787/health && break || sleep 2
           done
           curl -fsS http://127.0.0.1:8787/health
-          docker rm -f d
+          docker rm -f dethrottled-ci
