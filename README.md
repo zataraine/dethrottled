@@ -81,10 +81,16 @@ and anything under 600 characters counts as a miss.
 | `tls` | ~0.3s | a real Chrome TLS fingerprint, no browser | a library |
 | `crawl4ai` | ~4.4s | renders JavaScript, locally | a container you run |
 
-The renderer solves **JavaScript, not anti-bot**. A site that refuses your IP
-refuses a headless browser from that IP just as readily — measured, four of
-five well-known bot-walled sites returned "blocked by anti-bot protection"
-through the renderer. It is a browser, not a disguise.
+The renderer solves **JavaScript, not anti-bot**. Some sites answer with a
+managed challenge — an interactive "verify you are human" checkbox — and that
+is not a fingerprinting problem to be tuned away. Measured: a real Chrome, on
+the same machine and address, received the *identical* 403 those sites give us,
+carrying the same challenge document. It could run the challenge; it still
+ended at a checkbox waiting for a person.
+
+dethrottled reports that honestly as `challenge_needs_a_human` rather than
+`http_403`, because "forbidden" and "willing, if you tick a box" are different
+facts and only one of them means stop asking.
 
 Only `direct` is required. `tls` is **faster than plain requests** (310ms vs
 536ms median) because curl-impersonate is C — it's not a slow fallback, it's a

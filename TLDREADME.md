@@ -1068,15 +1068,26 @@ Measured as unnecessary and probably harmful. See §16.
    name. No free tier reads it: the renderer is blocked by anti-bot detection,
    and Wayback has no capture. Enabling `jina-reader` recovers some of these.
 
-2. **The renderer is not an anti-bot tool.** Crawl4AI renders JavaScript. It
-   does not disguise you, and a site refusing your IP refuses a headless
-   browser from that IP too. Measured with `render=always`: loc.gov,
-   science.org, congress.gov and stackoverflow.com all returned "blocked by
-   anti-bot protection", while encyclopedia.com — nav-heavy but not walled —
-   rendered fine. If you came here hoping for a Cloudflare bypass, there
-   isn't one, and §4 explains why no relay tier exists either.
+2. **Managed challenges cannot be solved by any client, and that is the point.**
+   loc.gov, science.org, congress.gov and stackoverflow.com answer with a
+   Cloudflare managed challenge: `cf-mitigated: challenge`, a "Just a moment"
+   document, and challenge-platform JavaScript.
 
-3. **IP reputation.** Some hosts refuse an address rather than a client. One
+   This was originally written up here as IP reputation, and that was wrong.
+   The correction came from a control that should have been run first: a real
+   Chrome, on the same machine and the same address, receives the **identical
+   403** with the **identical challenge document**. There is no pre-challenge
+   gap, so header order, HTTP/2 fingerprinting and JA4 — the obvious
+   hypotheses — explain nothing here. Chrome's only advantage is that it can
+   execute the challenge, and even then it arrives at an interactive checkbox
+   waiting for a human.
+
+   So there is nothing to tune. A site asking for a person is entitled to ask,
+   and dethrottled reports it as `challenge_needs_a_human` rather than
+   pretending it is a refusal. §4 explains why no relay tier exists either.
+
+3. **IP reputation, separately.** Some hosts refuse an address rather than a
+   client, which is a different thing from a challenge. One
    site returned 0 characters locally and 26,099 from a US egress — no
    client-side technique touches that. If you are outside the US/EU you will
    hit this more.

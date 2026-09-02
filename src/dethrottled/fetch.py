@@ -381,6 +381,59 @@ def _pdf_text(data: bytes, limit: int) -> str:
     return "\n".join(parts)
 
 
+# Markers of an interactive challenge, as opposed to a refusal.
+#
+# The distinction matters more than it looks. A 403 reads as "you are not
+# allowed", and callers act on that: they stop asking, or they go looking for a
+# block that is not there. A managed challenge is a different fact -- the site
+# is willing to serve the page to whoever can run its JavaScript and, at the
+# end of it, tick a box.
+#
+# Measured on four sites that were previously recorded as flat 403s: every one
+# returned a `cf-mitigated: challenge` header, a "Just a moment..." document
+# and challenge-platform script. A real Chrome on the same address got exactly
+# the same 403 -- the only difference was that it could execute the challenge,
+# and even then it ended at an interactive checkbox.
+#
+# So this is not something to defeat. It is something to REPORT accurately, so
+# nobody spends an afternoon tuning header order at a problem that was never
+# about headers.
+_CHALLENGE_MARKERS = (
+    "just a moment",
+    "cf-challenge",
+    "challenge-platform",
+    "verifying you are human",
+    "performing security verification",
+    "enable javascript and cookies to continue",
+)
+
+
+def _is_challenge(status: int, headers, body: str) -> bool:
+    """Is this an interactive challenge rather than a refusal?
+
+    The `cf-mitigated` header is authoritative when present; the body markers
+    catch vendors that do not set it. Bounded to the first 8KB because a
+    challenge document is small and scanning a whole page would be wasteful.
+    """
+    try:
+        mitigated = (headers or {}).get("cf-mitigated", "")
+    except Exception:
+        mitigated = ""
+    if "challenge" in str(mitigated).lower():
+        return True
+    if status not in (403, 429, 503):
+        return False
+    head = (body or "")[:8192].lower()
+    return any(marker in head for marker in _CHALLENGE_MARKERS)
+
+
+def _http_reason(prefix: str, status: int, headers, body: str) -> str:
+    """The reason string for a non-200, told apart properly."""
+    if _is_challenge(status, headers, body):
+        return "%schallenge_needs_a_human" % prefix
+    return "%shttp_%d" % (prefix, status)
+
+
 def _usable(html: str) -> bool:
     return bool(html) and len(html) > 800
 
@@ -399,7 +452,9 @@ def _tier_direct(url: str, timeout: int, allow_ocr: bool = False) -> tuple:
                 "Accept-Language": "en-US,en;q=0.9",
             })
         if response.status_code != 200:
-            return "", "http_%d" % response.status_code, url
+            return "", _http_reason("", response.status_code,
+                                    response.headers,
+                                    response.text[:8192] if response.content else ""), url
         ctype = response.headers.get("Content-Type", "")
         if "pdf" in ctype.lower() or url.lower().split("?")[0].endswith(".pdf"):
             # Returned as text, not html, so it takes the already-extracted
@@ -752,7 +807,8 @@ def _tier_tls(url: str) -> tuple:
     except Exception as exc:
         return {}, "tls_" + type(exc).__name__, url
     if response.status_code >= 400:
-        return {}, "tls_http_%d" % response.status_code, str(response.url)
+        return {}, _http_reason("tls_", response.status_code,
+                                response.headers, response.text or ""), str(response.url)
     # Same size ceiling as the direct tier: a browser fingerprint is not a
     # reason to accept an unbounded download.
     text = response.text or ""

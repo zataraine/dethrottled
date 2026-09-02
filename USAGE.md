@@ -93,6 +93,13 @@ A page that cannot be fetched is a row with `"quality": "failed"` and a
 `failure_reason`, **not** an HTTP error — one bad URL in a batch must not lose
 the whole response.
 
+Two failure reasons are worth knowing apart:
+
+| reason | means |
+| --- | --- |
+| `http_403` | forbidden. Stop asking |
+| `challenge_needs_a_human` | the site will serve this to anyone who runs its JavaScript and ticks a verification box. No automated client passes it — a real browser gets the same response |
+
 **`render`** controls where the renderer sits in the ladder:
 
 - `auto` (default) — escalate to it only when the cheaper tiers fail to yield
