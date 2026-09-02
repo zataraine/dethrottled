@@ -34,6 +34,7 @@ to the same publisher, not permission to ignore what they asked for.
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from collections import defaultdict
@@ -292,6 +293,21 @@ def _throttle(domain: str) -> None:
         _last_hit[domain] = time.time()
 
 
+def valid_url(url: str) -> bool:
+    """Is this something we could fetch at all?
+
+    Checked before robots, because `robots_allows` fails closed -- correct for
+    a robots lookup that errors, and badly wrong as an answer to "not a url".
+    A caller who mistypes an address was told `robots_disallow`, which sends
+    them to look for a rule that does not exist.
+    """
+    try:
+        parts = urlparse((url or "").strip())
+    except ValueError:
+        return False
+    return parts.scheme in ("http", "https") and bool(parts.netloc)
+
+
 def robots_allows(url: str, cache=None) -> bool:
     """Honoured at every tier. A relay is a route, not a permission slip."""
     domain = _domain(url)
@@ -379,6 +395,28 @@ def _pdf_text(data: bytes, limit: int) -> str:
             if total >= limit:
                 break
     return "\n".join(parts)
+
+
+# The reader service fetches the URL itself and hands back markdown. When the
+# target 404s it returns 200 with the ERROR PAGE, and says so in a warning line
+# of its own -- which we were accepting as a successful extraction.
+#
+# Measured: a nonexistent Wikipedia article. `direct` and `tls` both correctly
+# refused it (real HTTP 404); the reader returned a page of navigation chrome
+# carrying "Warning: Target URL returned error 404: Not Found", and the ladder
+# reported quality "ok". An agent trusting that gets a page of menus and no
+# indication anything is wrong.
+#
+# The marker is a fixed format, so this is a precise check rather than a guess
+# about what a "not found" page looks like.
+_READER_ERROR = re.compile(
+    r"Target URL returned error (\d{3})", re.IGNORECASE)
+
+
+def _reader_reported_error(text: str) -> str:
+    """The status the reader says the TARGET returned, or "" if it was fine."""
+    match = _READER_ERROR.search((text or "")[:2000])
+    return match.group(1) if match else ""
 
 
 # Markers of an interactive challenge, as opposed to a refusal.
@@ -543,7 +581,7 @@ def _tier_direct(url: str, timeout: int, allow_ocr: bool = False) -> tuple:
 #
 #     DETHROTTLED_ENABLE_JINA=0    never contact it
 #     dethrottled --no-jina        same, for one run
-ENABLE_JINA = os.environ.get("DETHROTTLED_ENABLE_JINA", "1").strip() not in (
+ENABLE_JINA = os.environ.get("DETHROTTLED_ENABLE_JINA", "0").strip() not in (
     "0", "false", "no", "off", "")
 JINA_READER_URL = os.environ.get("DETHROTTLED_JINA_READER_URL", "https://r.jina.ai/")
 # 20 rather than 35: no page in the profile needed more than 12.3s in total,
@@ -583,6 +621,17 @@ def _tier_jina_reader(url: str) -> tuple:
         if response.status_code != 200:
             return {}, "jina_http_%d" % response.status_code, url
         text = response.text or ""
+
+        # The reader fetched the URL itself. When the TARGET returned an error
+        # it still answers 200, with the error page and a warning line saying
+        # so -- and we were accepting that as prose. Measured on a nonexistent
+        # Wikipedia article: direct and tls both correctly refused the real
+        # 404, and this tier laundered it into quality "ok" with a page of
+        # navigation chrome.
+        upstream = _reader_reported_error(text)
+        if upstream:
+            return {}, "jina_target_http_%s" % upstream, url
+
         if len(text) > MAX_BYTES:
             text = text[:MAX_BYTES]
         return {"text": text}, "", url
@@ -917,6 +966,12 @@ def fetch_and_extract(url: str, *, max_chars: int = 3500, timeout: int = DEFAULT
             hit["cached"] = True
             _tier_stats["cache"] += 1
             return _clip(hit, max_chars)
+
+    if not valid_url(url):
+        _tier_stats["failed"] += 1
+        return {"ok": False, "text": "", "tier": None, "extractor": None,
+                "title": "", "published": "", "chars": 0, "url": url,
+                "reason": "invalid_url", "cached": False}
 
     if obey_robots and not robots_allows(url, cache=cache):
         _tier_stats["robots_blocked"] += 1

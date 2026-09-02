@@ -270,9 +270,16 @@ Crawl4AI from pip, which ships the crawler but not the HTTP service.
 `r.jina.ai`, unauthenticated. It works, and it is the only free thing that
 reads certain syndication aggregators.
 
-It is off by default because **every URL you send it is a URL you have told
-somebody else you were interested in**, and that is a real cost even when the
+It is off by default, everywhere, because **every URL you send it is a URL you
+have told somebody else you were interested in** — a real cost even when the
 money is zero. Enable with `DETHROTTLED_ENABLE_JINA=1`.
+
+It was briefly on for a plain `pip install`, reasoning that without a renderer
+it is the only tier that can read a JavaScript page. That reasoning is true and
+it loses anyway. Worse, the documentation already said "off by default" while
+the code said on — a tool that claims nothing leaves your network, quietly
+sending every URL to a third party, is the exact failure this project spends
+most of its effort avoiding.
 
 It is also inconsistent: measured on the same page in consecutive runs, 2,777
 characters and then 422. It is rate-limited rather than metered, and it
@@ -967,7 +974,7 @@ the model download.
 | `DETHROTTLED_TLS_TIMEOUT` | `8` | must stay small — see §5 |
 | `DETHROTTLED_CRAWL4AI_URL` | `""` | empty = tier skipped |
 | `DETHROTTLED_CRAWL4AI_API` | `auto` | `auto`, `crawl`, `render` |
-| `DETHROTTLED_ENABLE_JINA` | `1` pip / `0` compose | **leaves your network** |
+| `DETHROTTLED_ENABLE_JINA` | `0` | opt-in; **leaves your network** |
 
 ### Behaviour
 

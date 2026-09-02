@@ -38,7 +38,7 @@ dethrottled --host 0.0.0.0 --port 8787    # only behind the above
 | `direct` | the site you asked for | on |
 | `tls` | the site you asked for | on |
 | `crawl4ai` | your own container | on if configured |
-| `jina-reader` | **`r.jina.ai`, a third party** | **off** |
+| `jina-reader` | **`r.jina.ai`, a third party** | **off** — opt in with `DETHROTTLED_ENABLE_JINA=1` |
 
 `jina-reader` is the only tier that tells anybody else what you are reading. It
 is free and keyless, but **the URL is the payload** — if the URLs you fetch are

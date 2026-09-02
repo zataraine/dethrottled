@@ -211,7 +211,7 @@ ones people actually change:
 | `DETHROTTLED_MODEL_DIR` | `<cache>/models` | does **not** follow DATA_DIR |
 | `DETHROTTLED_SEARXNG_URL` | `""` | your instance; empty = skipped |
 | `DETHROTTLED_CRAWL4AI_URL` | `""` | your renderer; empty = skipped |
-| `DETHROTTLED_ENABLE_JINA` | `1` pip, `0` compose | **leaves your network** |
+| `DETHROTTLED_ENABLE_JINA` | `0` | opt-in; **the only tier that leaves your network** |
 | `DETHROTTLED_ENABLE_TLS` | `1` | the curl_cffi tier |
 | `DETHROTTLED_THIN_CHARS` | `600` | below this a result escalates |
 | `DETHROTTLED_USER_AGENT` | honest default | say what you are |

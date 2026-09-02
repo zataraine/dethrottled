@@ -51,6 +51,15 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI
 from pydantic import BaseModel, Field
 
+# Read from the package, never restated here.
+#
+# This was hardcoded to "0.1.0" while pyproject.toml and __init__.py both said
+# 0.1.2, so /health and /v2/capabilities reported a version the software had
+# not been for two releases. That is the number anyone evaluating this actually
+# sees, and a reviewer duly wrote it up as "version 0.1.0 -- early".
+#
+# Three places claiming a version is two too many.
+from . import __version__ as VERSION
 from . import domains as domain_health
 from . import extract as fx
 from . import fetch as fetcher
@@ -60,7 +69,6 @@ from . import search as fs
 from .cache import Cache
 from .corpus import index_fetched
 
-VERSION = "0.1.0"
 STARTED = time.time()
 
 _cache = None
