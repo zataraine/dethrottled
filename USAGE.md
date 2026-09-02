@@ -3,6 +3,7 @@
 ## Running it
 
 ```bash
+pip install 'dethrottled[all]'      # the base install is smaller; see README
 dethrottled                        # 127.0.0.1:8787
 dethrottled --port 9000
 dethrottled --no-jina              # local tiers only, nothing leaves your network

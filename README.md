@@ -7,7 +7,7 @@ Ask it a question and it returns results. Give it a URL and it returns the text
 captions. It runs on your machine, and there is nothing to sign up for.
 
 ```bash
-pip install dethrottled
+pip install 'dethrottled[all]'
 dethrottled
 ```
 
@@ -156,18 +156,26 @@ with a 14-day half-life, so a site that starts working recovers on its own.
 ## Install
 
 ```bash
-pip install dethrottled                  # search, fetch, extract
-pip install 'dethrottled[documents]'     # + PDF, Office, ODF, EPUB, RTF, OCR
-pip install 'dethrottled[media]'         # + video transcripts
-pip install 'dethrottled[semantic]'      # + the corpus
-pip install 'dethrottled[rerank]'        # + the cross-encoder
-pip install 'dethrottled[tls]'           # + the TLS tier
-pip install 'dethrottled[all]'
+pip install 'dethrottled[all]'           # everything below. Start here
 ```
 
-Extras rather than one big install, because the heavy pieces are the ones most
-callers never use. Every optional import is guarded: a missing extra removes a
-capability, it doesn't break one.
+The base install is deliberately small — eight pure-Python dependencies — and
+gives you search, the `direct` fetch tier and the extraction cascade. Every
+other capability is an extra, because the heavy pieces are the ones many
+callers never use:
+
+```bash
+pip install dethrottled                  # search, direct fetch, extraction
+pip install 'dethrottled[documents]'     # + PDF, Office, ODF, EPUB, RTF, OCR
+pip install 'dethrottled[tls]'           # + the TLS tier
+pip install 'dethrottled[semantic]'      # + the corpus
+pip install 'dethrottled[rerank]'        # + the cross-encoder
+pip install 'dethrottled[media]'         # + video transcripts
+```
+
+Every optional import is guarded: a missing extra removes a capability, it does
+not break one, and `/v2/capabilities` reports exactly what this install can
+actually do rather than what the code is capable of.
 
 Runs on **x86-64 and ARM64**, Linux, macOS and Windows, Python 3.10–3.13. CI
 tests both architectures. Nothing needs a compiler — **including on a Pi**.
