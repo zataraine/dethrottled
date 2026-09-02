@@ -111,7 +111,10 @@ class FetchBody(BaseModel):
     # What the ladder is ALLOWED to do, not what it must do. "never" keeps it
     # on the cheap local tiers for callers to whom latency matters more than
     # coverage.
-    render: str = "auto"          # auto | never
+    # auto    escalate to the renderer only when cheaper tiers fail (default)
+    # always  try the renderer FIRST, for a page you know needs a browser
+    # never   stay on the cheap local tiers
+    render: str = "auto"
     # The prose is the point; `raw` is for callers doing their own parsing, and
     # is the only reason this is a distinct verb rather than a rename.
     raw: bool = False
@@ -193,7 +196,7 @@ MIME = {
 
 def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
                  page_budget: float | None = None, allow_render: bool = True,
-                 raw: bool = False) -> dict:
+                 raw: bool = False, render_first: bool = False) -> dict:
     # allow_ocr is the one-URL-versus-many split. OCR costs about 1.4s a page,
     # which is worth it for a page somebody asked for by name and is not worth
     # it multiplied across a page of search results.
@@ -201,6 +204,7 @@ def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
                                        allow_ocr=allow_ocr,
                                        page_budget=page_budget,
                                        allow_render=allow_render,
+                                       render_first=render_first,
                                        keep_html=raw)
     # Record what happened, per domain. A cache hit is not evidence about the
     # site -- it says the cache worked, which is a different fact -- so only
@@ -346,7 +350,9 @@ def _harvest(rows) -> list:
 def fetch_urls(body: FetchBody, background: BackgroundTasks):
     # Named URLs: try hard, OCR included.
     rows = [_extract_row(u, body.max_chars, allow_ocr=True,
-                         allow_render=body.render != "never", raw=body.raw)
+                         allow_render=body.render != "never",
+                         render_first=body.render == "always",
+                         raw=body.raw)
             for u in body.urls if u]
     # Indexed AFTER the response, not during it. Embedding costs ~250ms a page
     # and the caller should not wait for work they did not ask for.
@@ -367,6 +373,7 @@ def search_and_fetch(body: SearchFetchBody, background: BackgroundTasks):
                                  allow_ocr=False,
                                  page_budget=fetcher.PAGE_BUDGET_BULK,
                                  allow_render=body.render != "never",
+                                 render_first=body.render == "always",
                                  raw=body.raw)
         merged.update({k: v for k, v in extracted.items() if k != "url"})
         out.append(merged)

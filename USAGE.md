@@ -3,7 +3,6 @@
 ## Running it
 
 ```bash
-pip install 'dethrottled[all]'      # the base install is smaller; see README
 dethrottled                        # 127.0.0.1:8787
 dethrottled --port 9000
 dethrottled --no-jina              # local tiers only, nothing leaves your network
@@ -77,7 +76,7 @@ fixed cost by the result count for no added information.
 | --- | --- | --- |
 | `urls` | `[]` | one or many |
 | `max_chars` | `8000` | per document |
-| `render` | `"auto"` | `auto` or `never` — what the ladder may do |
+| `render` | `"auto"` | `auto`, `always` or `never` — see below |
 | `raw` | `false` | also return the page source |
 
 ```json
@@ -92,6 +91,19 @@ through a renderer" are different levels of confidence in the same text.
 A page that cannot be fetched is a row with `"quality": "failed"` and a
 `failure_reason`, **not** an HTTP error — one bad URL in a batch must not lose
 the whole response.
+
+**`render`** controls where the renderer sits in the ladder:
+
+- `auto` (default) — escalate to it only when the cheaper tiers fail to yield
+  prose. Right for almost everything
+- `always` — try it **first**. For a page whose static HTML carries some
+  readable text (navigation, a summary) while the content you actually want
+  arrives with JavaScript. Without this, `direct` clears the thin-content
+  threshold on the chrome, the ladder is satisfied, and the renderer is never
+  asked. The cheap tiers stay behind it as fallback
+- `never` — stay on the local tiers, for when latency matters more than coverage
+
+`render` has no effect if no renderer is configured.
 
 `raw: true` bypasses the cache, because the cache deliberately stores extracted
 text and not source: HTML averages **47× the size of its text**, up to 182×.

@@ -1068,27 +1068,35 @@ Measured as unnecessary and probably harmful. See §16.
    name. No free tier reads it: the renderer is blocked by anti-bot detection,
    and Wayback has no capture. Enabling `jina-reader` recovers some of these.
 
-2. **IP reputation.** Some hosts refuse an address rather than a client. One
+2. **The renderer is not an anti-bot tool.** Crawl4AI renders JavaScript. It
+   does not disguise you, and a site refusing your IP refuses a headless
+   browser from that IP too. Measured with `render=always`: loc.gov,
+   science.org, congress.gov and stackoverflow.com all returned "blocked by
+   anti-bot protection", while encyclopedia.com — nav-heavy but not walled —
+   rendered fine. If you came here hoping for a Cloudflare bypass, there
+   isn't one, and §4 explains why no relay tier exists either.
+
+3. **IP reputation.** Some hosts refuse an address rather than a client. One
    site returned 0 characters locally and 26,099 from a US egress — no
    client-side technique touches that. If you are outside the US/EU you will
    hit this more.
 
-3. **Geographic variation.** Every measurement in this document was taken from
+4. **Geographic variation.** Every measurement in this document was taken from
    a single residential connection in one country. Your results will differ.
 
-4. **Video transcripts need a residential IP.** YouTube blocks datacentre
+5. **Video transcripts need a residential IP.** YouTube blocks datacentre
    ranges. Works from a machine you own, often not from a cloud host.
 
-5. **Fetching many URLs from one domain is slow by design.** 1.5s between
+6. **Fetching many URLs from one domain is slow by design.** 1.5s between
    requests to the same host. 8 URLs from one domain: 12.7s.
 
-6. **English-first.** BM25 and the fetch stack are language-agnostic, but
+7. **English-first.** BM25 and the fetch stack are language-agnostic, but
    reranking is English-only and cross-language corpus retrieval was dropped.
 
-7. **Legacy `.doc` and `.ppt` are not read.** Refused by name rather than
+8. **Legacy `.doc` and `.ppt` are not read.** Refused by name rather than
    silently.
 
-8. **Scraped search engines rot.** Three of eight tested were hard-blocked.
+9. **Scraped search engines rot.** Three of eight tested were hard-blocked.
    Expect the working set to change; the resting logic handles it, the list may
    need revisiting.
 

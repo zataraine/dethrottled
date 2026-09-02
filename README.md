@@ -7,7 +7,7 @@ Ask it a question and it returns results. Give it a URL and it returns the text
 captions. It runs on your machine, and there is nothing to sign up for.
 
 ```bash
-pip install 'dethrottled[all]'
+pip install dethrottled
 dethrottled
 ```
 
@@ -53,7 +53,8 @@ There is deliberately **no `/crawl`**. Rendering is a strategy for obtaining a
 page, not something a caller wants for its own sake — the ladder escalates by
 itself, and a caller choosing the renderer by hand would spend four seconds of
 Chromium on a page `direct` serves in two hundred milliseconds. Where forcing
-it is genuinely useful, that's the `render` parameter.
+it is genuinely useful, that's the `render` parameter — `always` puts the
+renderer first, `never` keeps to the cheap tiers.
 
 `/extract` and `/search-and-extract` remain as aliases.
 
@@ -79,6 +80,11 @@ and anything under 600 characters counts as a miss.
 | `direct` | ~2.1s | most pages. requests + trafilatura | nothing |
 | `tls` | ~0.3s | a real Chrome TLS fingerprint, no browser | a library |
 | `crawl4ai` | ~4.4s | renders JavaScript, locally | a container you run |
+
+The renderer solves **JavaScript, not anti-bot**. A site that refuses your IP
+refuses a headless browser from that IP just as readily — measured, four of
+five well-known bot-walled sites returned "blocked by anti-bot protection"
+through the renderer. It is a browser, not a disguise.
 
 Only `direct` is required. `tls` is **faster than plain requests** (310ms vs
 536ms median) because curl-impersonate is C — it's not a slow fallback, it's a
@@ -150,26 +156,18 @@ with a 14-day half-life, so a site that starts working recovers on its own.
 ## Install
 
 ```bash
-pip install 'dethrottled[all]'           # everything below. Start here
-```
-
-The base install is deliberately small — eight pure-Python dependencies — and
-gives you search, the `direct` fetch tier and the extraction cascade. Every
-other capability is an extra, because the heavy pieces are the ones many
-callers never use:
-
-```bash
-pip install dethrottled                  # search, direct fetch, extraction
+pip install dethrottled                  # search, fetch, extract
 pip install 'dethrottled[documents]'     # + PDF, Office, ODF, EPUB, RTF, OCR
-pip install 'dethrottled[tls]'           # + the TLS tier
+pip install 'dethrottled[media]'         # + video transcripts
 pip install 'dethrottled[semantic]'      # + the corpus
 pip install 'dethrottled[rerank]'        # + the cross-encoder
-pip install 'dethrottled[media]'         # + video transcripts
+pip install 'dethrottled[tls]'           # + the TLS tier
+pip install 'dethrottled[all]'
 ```
 
-Every optional import is guarded: a missing extra removes a capability, it does
-not break one, and `/v2/capabilities` reports exactly what this install can
-actually do rather than what the code is capable of.
+Extras rather than one big install, because the heavy pieces are the ones most
+callers never use. Every optional import is guarded: a missing extra removes a
+capability, it doesn't break one.
 
 Runs on **x86-64 and ARM64**, Linux, macOS and Windows, Python 3.10–3.13. CI
 tests both architectures. Nothing needs a compiler — **including on a Pi**.

@@ -115,3 +115,29 @@ def test_capabilities_lists_the_web_engines(client):
     wants to know which engines were even asked."""
     body = client.get("/v2/capabilities").json()
     assert any(name.startswith("web-") for name in body["search"])
+
+
+def test_render_always_puts_the_renderer_first(client):
+    """ exists for the page whose static HTML has SOME text but whose
+    real content needs JavaScript -- there,  never asks the renderer."""
+    seen = {}
+    original = srv.fetcher.fetch_and_extract
+
+    def spy(url, **kw):
+        seen["render_first"] = kw.get("render_first")
+        seen["allow_render"] = kw.get("allow_render")
+        return original(url, **kw)
+
+    srv.fetcher.fetch_and_extract = spy
+    try:
+        client.post("/fetch", json={"urls": ["https://example.com/a"],
+                                    "render": "always"})
+        assert seen == {"render_first": True, "allow_render": True}
+        client.post("/fetch", json={"urls": ["https://example.com/a"],
+                                    "render": "auto"})
+        assert seen == {"render_first": False, "allow_render": True}
+        client.post("/fetch", json={"urls": ["https://example.com/a"],
+                                    "render": "never"})
+        assert seen == {"render_first": False, "allow_render": False}
+    finally:
+        srv.fetcher.fetch_and_extract = original

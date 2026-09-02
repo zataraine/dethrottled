@@ -42,7 +42,7 @@ from urllib.robotparser import RobotFileParser
 
 import requests
 
-PROJECT_URL = "https://github.com/zataraine/dethrottled"
+PROJECT_URL = "https://github.com/DETHROTTLED_GITHUB_USER/dethrottled"
 
 # Honest and contactable, because that is the half of politeness robots.txt
 # does not cover. Override it if you are running this as something else --
@@ -828,6 +828,7 @@ def _clip(out: dict, max_chars: int) -> dict:
 def fetch_and_extract(url: str, *, max_chars: int = 3500, timeout: int = DEFAULT_TIMEOUT,
                       cache=None, obey_robots: bool = True,
                       allow_render: bool = True,
+                      render_first: bool = False,
                       allow_ocr: bool = True,
                       page_budget: float | None = None,
                       keep_html: bool = False) -> dict:
@@ -896,6 +897,22 @@ def fetch_and_extract(url: str, *, max_chars: int = 3500, timeout: int = DEFAULT
         tiers.append(("crawl4ai", lambda: _tier_crawl4ai(url)))
     if ENABLE_JINA:
         tiers.append(("jina-reader", lambda: _tier_jina_reader(url)))
+
+    # render_first moves the renderer to the FRONT of the ladder.
+    #
+    # The ladder normally escalates only when a cheaper tier fails to yield
+    # prose, which is right for almost everything. It is wrong in one case: a
+    # page whose static HTML carries SOME readable text -- navigation, a
+    # summary, a cookie notice -- while the content the caller wants arrives
+    # with JavaScript.  clears THIN_CHARS on the chrome, the ladder is
+    # satisfied, and the renderer is never asked. A caller who knows a page
+    # needs a browser had no way to say so.
+    #
+    # The cheap tiers are kept behind it rather than discarded, so a renderer
+    # that is resting, over budget or simply beaten by the page still falls
+    # through instead of failing outright.
+    if render_first:
+        tiers.sort(key=lambda pair: pair[0] != "crawl4ai")
 
     reasons, best = [], None
     budget = PAGE_BUDGET if page_budget is None else page_budget

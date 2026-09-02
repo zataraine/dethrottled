@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dethrottled"
-version = "0.1.1"
+version = "0.1.0"
 description = "Zero-API web search, fetch and extraction. No keys, no quota, no metered pool."
 readme = "README.md"
 license = { text = "MIT" }
@@ -40,11 +40,6 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
 ]
-
-[project.urls]
-Homepage = "https://github.com/zataraine/dethrottled"
-Repository = "https://github.com/zataraine/dethrottled"
-Issues = "https://github.com/zataraine/dethrottled/issues"
 
 [project.optional-dependencies]
 # Documents as text: PDF, the Office formats, OpenDocument, EPUB and RTF.
