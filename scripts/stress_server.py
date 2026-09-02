@@ -45,7 +45,7 @@ def call(base, path, payload, timeout=180):
         return True, (time.time() - started) * 1000, parsed, ""
     except urllib.error.HTTPError as exc:
         return False, (time.time() - started) * 1000, None, "HTTP %d" % exc.code
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:
         return False, (time.time() - started) * 1000, None, type(exc).__name__
 
 
@@ -55,7 +55,7 @@ def get(base, path, timeout=60):
         with urllib.request.urlopen(base.rstrip("/") + path,
                                     timeout=timeout) as response:
             return True, (time.time() - started) * 1000, json.load(response), ""
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:
         return False, (time.time() - started) * 1000, None, type(exc).__name__
 
 

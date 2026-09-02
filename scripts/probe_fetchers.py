@@ -128,7 +128,7 @@ def main(argv=None):
                 out = (fn(url, args.impersonate) if name == "curl_cffi"
                        else fn(url))
                 chars, why = prose(*out, url)
-            except Exception as exc:                  # noqa: BLE001
+            except Exception as exc:
                 chars, why = 0, type(exc).__name__[:22]
             times[name].append(int((time.time() - started) * 1000))
             row[name] = chars

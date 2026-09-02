@@ -86,7 +86,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check src tests
+      - run: ruff check .
 
   no-secrets:
     # A leak removed in a later commit is still in the history, so this looks at

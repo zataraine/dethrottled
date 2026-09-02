@@ -110,3 +110,34 @@ def test_the_version_is_declared_in_exactly_one_place():
     src = pathlib.Path(server.__file__).read_text(encoding="utf-8")
     assert not re.search(r'VERSION\s*=\s*[\'"]\d+\.\d+', src), \
         "the version must be imported, never restated"
+
+
+
+def test_no_module_hardcodes_a_version_number():
+    """The check above only guarded server.py, so the identical mistake sat in
+    fetch.py the whole time: the User-Agent said "dethrottled/0.1" while the
+    package was 0.2.0. Guard every module, not the one that was caught."""
+    import re
+    pkg = pathlib.Path(server.__file__).parent
+    offenders = []
+    for path in sorted(pkg.glob("*.py")):
+        if path.name == "__init__.py":
+            continue          # the one legitimate home for the number
+        for number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), 1):
+            code = line.split("#", 1)[0]
+            if "version" not in code.lower() and "dethrottled/" not in code:
+                continue
+            if re.search(r'["\'][^"\']*\b\d+\.\d+\.?\d*', code):
+                offenders.append("%s:%d %s" % (path.name, number, line.strip()))
+    assert not offenders, (
+        "version restated instead of imported:\n" + "\n".join(offenders))
+
+
+def test_the_user_agent_is_actually_contactable():
+    """It shipped with the templating placeholder still in it, so every request
+    we made announced a URL that 404s. An unreachable contact address is not a
+    contact address, and this is the string that asks to be told to stop."""
+    assert "DETHROTTLED_GITHUB_USER" not in f.PROJECT_URL
+    assert f.PROJECT_URL.startswith("https://github.com/")
+    assert __version__ in f.USER_AGENT

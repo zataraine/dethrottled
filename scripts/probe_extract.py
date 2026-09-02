@@ -117,7 +117,7 @@ def main():
                 print("  %-12s %6dk" % (label, len(html) // 1024))
             else:
                 print("  %-12s skipped (%s)" % (label, reason or "too small"))
-        except Exception as exc:                      # noqa: BLE001
+        except Exception as exc:
             print("  %-12s skipped (%s)" % (label, type(exc).__name__))
     if not pages:
         raise SystemExit("no pages fetched")
@@ -137,7 +137,7 @@ def main():
             started = time.perf_counter()
             try:
                 text = fn(html, url) or ""
-            except Exception:                         # noqa: BLE001
+            except Exception:
                 fails[name] += 1
                 text = ""
             elapsed = (time.perf_counter() - started) * 1000

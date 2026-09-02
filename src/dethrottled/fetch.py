@@ -43,14 +43,23 @@ from urllib.robotparser import RobotFileParser
 
 import requests
 
-PROJECT_URL = "https://github.com/DETHROTTLED_GITHUB_USER/dethrottled"
+from . import __version__
+
+PROJECT_URL = "https://github.com/zataraine/dethrottled"
 
 # Honest and contactable, because that is the half of politeness robots.txt
 # does not cover. Override it if you are running this as something else --
 # but say what you are, and leave a way to be told to stop.
+#
+# Two things here were wrong and both undercut that claim. The URL was still
+# the templating placeholder, so every request we made announced an address
+# that 404s -- an unreachable contact is not a contact. And the version was
+# frozen at "0.1" by hand, which is how server.py ended up two releases stale.
+# The version is stated in exactly one place, __init__.py, and read from there.
 USER_AGENT = os.environ.get(
     "DETHROTTLED_USER_AGENT",
-    "dethrottled/0.1 (+%s; automated fetcher; respects robots.txt)" % PROJECT_URL)
+    "dethrottled/%s (+%s; automated fetcher; respects robots.txt)"
+    % (__version__, PROJECT_URL))
 # Used ONLY for the two news RSS endpoints and the optional relay, both of
 # which serve degraded or empty feeds to an obviously-automated agent. Article
 # fetching uses USER_AGENT above, where robots.txt governs. Deliberately not

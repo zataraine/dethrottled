@@ -40,7 +40,7 @@ def wait_for(port, timeout=90):
             with urllib.request.urlopen(
                     "http://127.0.0.1:%d/health" % port, timeout=3):
                 return True
-        except Exception:                             # noqa: BLE001
+        except Exception:
             time.sleep(1)
     return False
 

@@ -55,7 +55,7 @@ BROWSERISH = {
 def status(fn):
     try:
         return fn()
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:
         return "%s" % type(exc).__name__
 
 
@@ -129,7 +129,7 @@ def main():
             except ValueError:
                 shape = "not json"
             print("  %-28s %6d  %-24s %s" % (label, len(body), str(shape)[:24], note))
-        except Exception as exc:                      # noqa: BLE001
+        except Exception as exc:
             print("  %-28s FAILED  %s" % (label, str(exc)[:40]))
         time.sleep(1.0)
 

@@ -78,7 +78,7 @@ def main():
         try:
             result = f.fetch_and_extract(url, max_chars=50000)
             live = result["chars"] if result["ok"] else 0
-        except Exception:                             # noqa: BLE001
+        except Exception:
             live = 0
 
         chars, age, note = 0, "-", ""
@@ -96,7 +96,7 @@ def main():
                         tzinfo=timezone.utc)
                     age = str((datetime.now(timezone.utc) - when).days)
                 note = resolved[:44]
-        except Exception as exc:                      # noqa: BLE001
+        except Exception as exc:
             note = "%s: %s" % (type(exc).__name__, str(exc)[:30])
 
         if chars > live:

@@ -27,7 +27,7 @@ def run(workers, fn, count):
     def guarded(i):
         try:
             fn(i)
-        except Exception as exc:                      # noqa: BLE001
+        except Exception as exc:
             errors.append("%s: %s" % (type(exc).__name__, str(exc)[:60]))
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -135,7 +135,7 @@ def main(argv=None):
         rows = 0 if matrix is None else matrix.shape[0]
         passed &= report("corpus matrix", errors, len(meta), rows,
                          "vectors and metadata must stay in step")
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:
         print("%-22s SKIP   %s" % ("corpus matrix", str(exc)[:50]))
 
     print("\n%s" % ("all shared state survived" if passed

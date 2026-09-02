@@ -71,7 +71,7 @@ def run_current_stack(_engine, query, max_results):
     rows = fs.bing_news(query, max_items=max_results)
     try:
         rows += fs.google_news_headlines(query, max_items=max_results)
-    except Exception:                                 # noqa: BLE001
+    except Exception:
         pass
     return [r.get("url", "") for r in rows]
 
@@ -102,7 +102,7 @@ def main(argv=None):
             try:
                 urls = runner(engine, query, args.max_results)
                 urls = [u for u in urls if u]
-            except Exception:                         # noqa: BLE001
+            except Exception:
                 fails[engine] += 1
                 urls = []
             times[engine].append((time.time() - started) * 1000)

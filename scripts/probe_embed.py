@@ -122,7 +122,7 @@ def main():
     for multilingual, label in ((False, "minilm (87MB)"), (True, "e5 (465MB)")):
         try:
             results.append(evaluate(multilingual, label))
-        except Exception as exc:                      # noqa: BLE001
+        except Exception as exc:
             print("%s unavailable: %s" % (label, str(exc)[:70]))
 
     if not results:

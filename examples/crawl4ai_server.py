@@ -87,7 +87,7 @@ async def crawl(body: CrawlBody):
                 "html": getattr(out, "html", "") or "",
                 "error_message": getattr(out, "error_message", "") or "",
             })
-        except Exception as exc:                      # noqa: BLE001
+        except Exception as exc:
             # A failed render is a result with a reason, not a 500. One bad URL
             # in a batch must not lose the whole response.
             results.append({"url": url, "success": False, "markdown": "",

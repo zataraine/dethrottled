@@ -32,7 +32,7 @@ def check(label, fn, required=True):
         detail = fn()
         print("  %-34s ok    %s" % (label, detail or ""))
         return True
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:
         mark = "FAIL " if required else "absent"
         print("  %-34s %s %s: %s" % (label, mark, type(exc).__name__,
                                      str(exc)[:60]))
@@ -157,7 +157,7 @@ def main():
         for name, value in (("data", paths.data_dir()),
                             ("models", paths.model_dir())):
             text = str(value)
-            if text.startswith("/mnt/") or "/home/" in text and "/data" not in text:
+            if text.startswith("/mnt/") or ("/home/" in text and "/data" not in text):
                 raise RuntimeError("%s resolves outside the container: %s"
                                    % (name, text))
         return "data=%s models=%s" % (paths.data_dir(), paths.model_dir())

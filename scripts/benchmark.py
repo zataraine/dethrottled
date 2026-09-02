@@ -53,7 +53,7 @@ def post(base, path, payload, timeout):
         with urllib.request.urlopen(req, timeout=timeout) as response:
             body = json.load(response)
         return body, int((time.time() - started) * 1000), None
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:
         return None, int((time.time() - started) * 1000), str(exc)[:120]
 
 

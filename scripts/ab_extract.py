@@ -38,7 +38,7 @@ def extract(base, urls, timeout, chunk=4):
             for row in got:
                 row["_ms"] = elapsed
             rows.extend(got)
-        except Exception as exc:                      # noqa: BLE001
+        except Exception as exc:
             for url in batch:
                 rows.append({"url": url, "quality": "failed", "content": "",
                              "failure_reason": "client:%s" % type(exc).__name__,

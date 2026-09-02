@@ -66,7 +66,7 @@ def warmed(url):
     with creq.Session(impersonate=PROFILE) as s:
         try:
             s.get(root, timeout=25, allow_redirects=True)
-        except Exception:                             # noqa: BLE001
+        except Exception:
             pass
         time.sleep(1.5)
         r = s.get(url, timeout=25, allow_redirects=True,
@@ -78,7 +78,7 @@ def run(label, fn, url):
     try:
         code, chars, cookies = fn(url)
         return "%s %5d %2dc" % (str(code)[:3], chars, cookies)
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:
         return type(exc).__name__[:12]
 
 

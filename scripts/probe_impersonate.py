@@ -39,7 +39,7 @@ def fetch(url, profile):
     try:
         r = creq.get(url, impersonate=profile, timeout=25, allow_redirects=True)
         return r.status_code, r.text, int((time.time() - started) * 1000)
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:
         return type(exc).__name__, "", int((time.time() - started) * 1000)
 
 
@@ -54,7 +54,7 @@ def main():
     for label, url in TARGETS:
         cells = []
         for profile in PROFILES:
-            status, html, ms = fetch(url, profile)
+            status, html, _ms = fetch(url, profile)
             if status == 200:
                 cells.append("200/%dk" % (len(html) // 1024))
                 # keep the biggest 200 for part 2
@@ -77,8 +77,8 @@ def main():
         return trafilatura.extract(html, url=url, include_comments=False) or ""
 
     def with_readability(html, url):
-        from readability import Document
         from bs4 import BeautifulSoup
+        from readability import Document
         summary = Document(html).summary()
         return BeautifulSoup(summary, "html.parser").get_text(" ", strip=True)
 
@@ -105,10 +105,10 @@ def main():
             continue
         url, html = best_html[label]
         cells = []
-        for name, fn in extractors:
+        for _name, fn in extractors:
             try:
                 cells.append(str(len(fn(html, url) or "")))
-            except Exception as exc:                  # noqa: BLE001
+            except Exception as exc:
                 cells.append(type(exc).__name__[:11])
         print("%-16s %7dk %s" % (label, len(html) // 1024,
                                  "".join(c.rjust(13) for c in cells)))
