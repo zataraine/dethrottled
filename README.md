@@ -29,6 +29,10 @@ docker compose up -d
 
 ---
 
+## Maintainer
+
+This repository is owned and maintained by [@zataraine](https://github.com/zataraine).
+
 ## Why it exists
 
 Most search and scraping tools ask for an API key, meter you, and cut you off.
