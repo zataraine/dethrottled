@@ -1079,6 +1079,9 @@ def fetch_and_extract(url: str, *, max_chars: int = 3500, timeout: int = DEFAULT
                 "title": "", "published": "", "chars": 0, "url": url,
                 "reason": why or "no_transcript", "cached": False}
 
+    # Kept bound past the loop so a total failure can report which tier
+    # it was last standing on, rather than reporting nothing at all.
+    name = None
     for name, run in tiers:
         # A resting tier is skipped without being asked. This is the smooth
         # transition: the ladder simply gets shorter for a while and the rungs
@@ -1174,6 +1177,10 @@ def fetch_and_extract(url: str, *, max_chars: int = 3500, timeout: int = DEFAULT
         return finish(best)
 
     _tier_stats["failed"] += 1
-    return {"ok": False, "text": "", "tier": best, "extractor": None,
+    # `best` is None on this path by construction (the `if best is not None`
+    # branch above already returned). `name` is the last tier the loop tried
+    # before giving up -- the same "how far did it get" fact `tier` reports on
+    # success, so a caller checking only `tier` is not left with nothing.
+    return {"ok": False, "text": "", "tier": name, "extractor": None,
             "title": "", "published": "", "chars": 0, "url": url,
             "reason": " | ".join(reasons), "cached": False}

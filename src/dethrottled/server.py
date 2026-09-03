@@ -223,7 +223,10 @@ def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
     if not result["ok"]:
         return {"url": url, "content": "", "content_type": None,
                 "quality": "failed", "failure_reason": result["reason"][:160],
-                "tier": None, "cached": result.get("cached", False)}
+                # fetch_and_extract now reports which tier it was last
+                # standing on when it gave up; a hardcoded None here would
+                # throw that away and leave a tier-only consumer with nothing.
+                "tier": result.get("tier"), "cached": result.get("cached", False)}
     return {
         "url": url,
         "content": result["text"],
