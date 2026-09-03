@@ -30,7 +30,12 @@ services:
     # anyone who can talk to it. Exposing it beyond localhost is a deliberate
     # decision -- read SECURITY.md, then put an authenticating proxy in front.
     ports:
-      - "127.0.0.1:${DETHROTTLED_PORT:-8787}:8787"
+      # Loopback by default: this service fetches URLs on behalf of
+      # whoever can reach it, and it has no authentication of its own.
+      # Set DETHROTTLED_BIND=0.0.0.0 to publish it on a LAN you trust --
+      # the port was already configurable and the address was not, which
+      # meant editing this file, which meant diverging from the repo.
+      - "${DETHROTTLED_BIND:-127.0.0.1}:${DETHROTTLED_PORT:-8787}:8787"
     environment:
       DETHROTTLED_SEARXNG_URL: http://searxng:8080
       DETHROTTLED_CRAWL4AI_URL: http://crawl4ai:11235
