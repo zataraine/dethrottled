@@ -51,7 +51,7 @@ import time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Read from the package, never restated here.
 #
@@ -90,7 +90,14 @@ app = FastAPI(title="dethrottled", version=VERSION,
 
 
 class SearchBody(BaseModel):
+    # Unknown fields are rejected rather than ignored, so a caller that mistypes
+    # one hears about it instead of silently getting the default.
+    model_config = ConfigDict(extra="forbid")
+
     query: str
+    # The contract's name for result count. num_results and max_items remain
+    # accepted for callers already written against them; limit wins.
+    limit: int | None = None
     num_results: int = 8
     max_items: int | None = None
     categories: str = ""
@@ -117,6 +124,8 @@ class SearchBody(BaseModel):
 
 
 class FetchBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     urls: list[str] = Field(default_factory=list)
     # What the ladder is ALLOWED to do, not what it must do. "never" keeps it
     # on the cheap local tiers for callers to whom latency matters more than
@@ -338,7 +347,7 @@ def _ranked(body) -> tuple:
     and returning `limit` rows is not ranking, it is sorting -- there has to be
     something for the ranker to reject.
     """
-    limit = body.max_items or body.num_results
+    limit = body.limit or body.max_items or body.num_results
     pool = limit * 3 if (body.rank or body.rerank) else limit
     rows, meta = fs.search(body.query, max_items=pool,
                            categories=body.categories, cache=cache())
