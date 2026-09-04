@@ -70,12 +70,19 @@ entire point — there is no key to leak, rotate, or accidentally commit.
 ## What is stored on disk
 
 Page bodies, search results, the passage index, engine health and domain
-health — in the data directory, `~/.cache/dethrottled` unless you set
-`DETHROTTLED_DATA_DIR`. That is other people's content and your own query
-history, in SQLite and JSON files with whatever permissions your umask gave
-them.
+health — in the data directory: `~/.cache/dethrottled` on Linux and macOS,
+`%LOCALAPPDATA%\dethrottled` on Windows, `$XDG_CACHE_HOME/dethrottled` if
+that's set, or `DETHROTTLED_DATA_DIR` overriding all of the above. That is
+other people's content and your own query history, in SQLite and JSON files
+with whatever permissions your umask gave them.
 
 It is all disposable. Delete any of it and the system refills it.
+
+The ONNX model weights (~500MB with OCR language packs) live in a separate
+directory that does **not** follow `DETHROTTLED_DATA_DIR` -- set
+`DETHROTTLED_MODEL_DIR` if you need to move them too. That's deliberate: a
+caller pointing the data directory at a scratch path, which every test does,
+should not silently orphan a half-gigabyte download.
 
 Note that the **page source is not stored** — the cache keeps extracted text
 only. That is a size decision (HTML averages 47× its text) but it also means

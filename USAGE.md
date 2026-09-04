@@ -38,6 +38,8 @@ parameter, not an endpoint.
 | `rerank` | `false` | cross-encoder over the top 40. Needs `[rerank]` |
 | `corpus` | `0` | merge this many already-fetched passages into the pool |
 | `recency` | `0.0` | 0 = pure relevance, 1 = freshness dominates |
+| `max_items` | unset | when set, overrides `num_results` -- for callers already using that name |
+| `engines`, `fresh`, `profile` | -- | accepted and **silently ignored**. There's no cache-bypass cost worth exposing and no profile ladder to select, but plenty of clients are written against APIs that have both, so accepting the fields costs nothing and saves an edit |
 
 Each row:
 
@@ -79,6 +81,7 @@ fixed cost by the result count for no added information.
 | `max_chars` | `8000` | per document |
 | `render` | `"auto"` | `auto`, `always` or `never` — see below |
 | `raw` | `false` | also return the page source |
+| `fresh`, `profile` | -- | accepted and **silently ignored**, same compatibility reasoning as `/search` |
 
 ```json
 [{"url": "...", "content": "...", "content_type": "text/html",
