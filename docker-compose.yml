@@ -18,6 +18,10 @@
 # leaves it on. Here it is off (DETHROTTLED_ENABLE_JINA=0) because Crawl4AI
 # does that job in-network. Turn it back on if you want the extra coverage.
 
+# The two upstream images are pinned by tag AND digest rather than :latest, so
+# this file describes one stack rather than whatever upstream shipped today.
+# See the comments at each image for how to move them forward.
+
 name: dethrottled
 
 services:
@@ -57,7 +61,8 @@ services:
         condition: service_started
 
   searxng:
-    image: searxng/searxng:latest
+    # Pinned. 2026.9.1, the build this stack was last verified against.
+    image: searxng/searxng:2026.9.1-18af21159@sha256:c7cc75852051bf6254afda6ed1b920dd1677d8efe4ab141bf558f02e582f4371
     restart: unless-stopped
     volumes:
       - ./docker/searxng:/etc/searxng:ro
@@ -71,7 +76,8 @@ services:
       - "8080"
 
   crawl4ai:
-    image: unclecode/crawl4ai:latest
+    # Pinned. 0.9.3, byte-identical to the `latest` this was verified against.
+    image: unclecode/crawl4ai:0.9.3@sha256:84751dab794259db05d5bd4e5c766a8041a65f0554326e4516e620abdf2fa18b
     restart: unless-stopped
     environment:
       # Upstream binds to loopback ONLY unless a credential is present -- its
