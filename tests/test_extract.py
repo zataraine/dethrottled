@@ -103,3 +103,60 @@ def test_beautifulsoup_is_gone():
     # come back is the import.
     assert "bs4" not in imported
     assert "readability" not in imported
+
+
+# --- link-preserving extraction -------------------------------------------
+#
+# The article path and this one are deliberately opposed: everything above
+# treats navigation as noise to remove, and this treats it as the payload.
+
+LINKY = """<!doctype html>
+<html><head><title>Index</title></head><body>
+<nav><a href="/nav/one">Nav One</a></nav>
+<article>
+<p>See <a href="/docs/guide">the guide</a> or
+<a href="https://elsewhere.example/paper">the paper</a>.</p>
+<p><a href="#section">an anchor</a> and <a href="javascript:void(0)">a script</a>
+and <a href="/empty"></a> are all skipped.</p>
+</article>
+</body></html>"""
+
+
+def test_links_are_kept_as_markdown():
+    out = fx.links(LINKY, "https://site.example/a/b")
+    assert "[the guide](https://site.example/docs/guide)" in out
+    assert "[the paper](https://elsewhere.example/paper)" in out
+
+
+def test_relative_hrefs_resolve_against_the_page():
+    """A caller must be able to fetch what comes back without knowing the
+    origin. A bare "/docs/guide" is not fetchable on its own."""
+    out = fx.links(LINKY, "https://site.example/a/b")
+    assert "(/docs/guide)" not in out
+    assert "https://site.example/docs/guide" in out
+
+
+def test_non_navigable_hrefs_are_skipped():
+    """Fragments, javascript: and empty anchor text are not destinations, and
+    emitting them as links would put things in a crawl frontier that cannot be
+    fetched."""
+    out = fx.links(LINKY, "https://site.example/a/b")
+    assert "an anchor" in out          # the text survives
+    assert "(#section)" not in out     # the link does not
+    assert "javascript:" not in out
+
+
+def test_chrome_is_still_dropped():
+    out = fx.links(LINKY, "https://site.example/a/b")
+    assert "Nav One" not in out
+
+
+def test_links_max_chars_is_respected():
+    assert len(fx.links(LINKY, "https://site.example/a/b", max_chars=40)) <= 40
+
+
+def test_junk_html_is_not_fatal():
+    """Degraded quality, never a failed request -- the caller already has the
+    prose from the normal path and this is an enrichment on top of it."""
+    assert fx.links("", "https://site.example/") == ""
+    assert isinstance(fx.links("<html><body>", "https://site.example/"), str)

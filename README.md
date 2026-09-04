@@ -60,7 +60,11 @@ Chromium on a page `direct` serves in two hundred milliseconds. Where forcing
 it is genuinely useful, that's the `render` parameter — `always` puts the
 renderer first, `never` keeps to the cheap tiers.
 
-`/extract` and `/search-and-extract` remain as aliases.
+`/extract` and `/search-and-extract` remain as aliases. So does
+`/extract-with-links`, which is `/fetch` with `links: true`: the anchors kept and
+rendered as markdown, resolved to absolute URLs. For link discovery rather than
+reading — an index page's value is what it points at, and the article
+extractors drop that by design.
 
 ## The fetch ladder
 

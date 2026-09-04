@@ -37,6 +37,7 @@ producing mush.
 from __future__ import annotations
 
 import re
+from urllib.parse import urljoin
 
 try:
     import trafilatura
@@ -238,6 +239,54 @@ def extract(html: str, url: str = "", *, max_chars: int = 3500) -> dict:
 
     return {"ok": False, "text": "", "tier": None, "reason": "no_extractor_succeeded",
             "title": "", "published": "", "chars": 0}
+
+
+def links(html: str, url: str = "", *, max_chars: int = 3500) -> str:
+    """The page's text with its anchors kept, as markdown links.
+
+    A separate function rather than a flag on extract() because the two want
+    opposite things. extract() is hunting for the article and throwing the
+    navigation away; this is for callers who came FOR the navigation -- link
+    discovery, crawl frontiers, "what does this index page point at". Running
+    the article extractors first and re-attaching hrefs afterwards would mean
+    parsing twice to recover exactly what the first parse set out to discard.
+
+    Relative hrefs are resolved against the page, so a caller can fetch what
+    comes back without knowing where it came from. Returns "" rather than
+    raising: this is a degraded-quality answer at worst, never a failed
+    request, and the caller already has the prose from the normal path.
+    """
+    try:
+        from selectolax.lexbor import LexborHTMLParser
+    except ImportError:
+        return ""
+    try:
+        tree = LexborHTMLParser(html)
+        for tag in ("script", "style", "nav", "header", "footer", "aside",
+                    "form", "noscript", "svg", "iframe", "template"):
+            for node in tree.css(tag):
+                node.decompose()
+        body = tree.body
+        if body is None:
+            return ""
+        for anchor in body.css("a"):
+            href = (anchor.attributes.get("href") or "").strip()
+            text = anchor.text(strip=True)
+            if not href or not text:
+                continue
+            if href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                continue
+            anchor.replace_with("[%s](%s)" % (text, urljoin(url, href)))
+        # Same de-duplication the article path does, for the same reason: a
+        # nav rendered twice for mobile and desktop is one link, not two.
+        seen = {}
+        for line in body.text(separator="\n", strip=True).splitlines():
+            line = line.strip()
+            if line:
+                seen.setdefault(line, None)
+        return "\n".join(seen)[:max_chars]
+    except Exception:
+        return ""
 
 
 def available() -> dict:

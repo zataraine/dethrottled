@@ -70,6 +70,7 @@ Two verbs and one combination, not one endpoint per tier.
 | `POST /search` | a query → ranked results |
 | `POST /fetch` | URLs → text (`raw: true` for source) |
 | `POST /search-and-fetch` | both, fetching only the winners |
+| `POST /extract-with-links` | URLs -> text with anchors kept as markdown |
 | `POST /extract`, `/search-and-extract` | aliases |
 | `GET /corpus/search`, `/corpus/stats` | query what is already held |
 | `GET /health`, `/ready` | liveness |

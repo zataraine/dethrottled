@@ -34,7 +34,9 @@ milliseconds. Where forcing the question is genuinely useful, that is the
 `render` parameter, not a route.
 
 `/extract` and `/search-and-extract` remain as aliases: they are what earlier
-callers were written against, and renaming for tidiness is a poor trade.
+callers were written against, and renaming for tidiness is a poor trade. So is
+`/extract-with-links`, which is `/fetch` with `links: true` -- the anchors kept
+and rendered as markdown, for callers doing link discovery rather than reading.
 
 Run:
     dethrottled --port 8182
@@ -126,6 +128,10 @@ class FetchBody(BaseModel):
     # The prose is the point; `raw` is for callers doing their own parsing, and
     # is the only reason this is a distinct verb rather than a rename.
     raw: bool = False
+    # Keep the anchors, rendered as markdown links. For callers doing link
+    # discovery rather than reading: an index page's VALUE is its outbound
+    # links, and the article extractors throw those away by design.
+    links: bool = False
     # 8000, not 3500: 3,500 characters is about 550 words, and a news article
     # is 500 to 800 -- this endpoint was truncating typical articles. Not
     # 10,000, because past roughly eight thousand most sites are into
@@ -204,7 +210,8 @@ MIME = {
 
 def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
                  page_budget: float | None = None, allow_render: bool = True,
-                 raw: bool = False, render_first: bool = False) -> dict:
+                 raw: bool = False, render_first: bool = False,
+                 links: bool = False) -> dict:
     # allow_ocr is the one-URL-versus-many split. OCR costs about 1.4s a page,
     # which is worth it for a page somebody asked for by name and is not worth
     # it multiplied across a page of search results.
@@ -213,7 +220,7 @@ def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
                                        page_budget=page_budget,
                                        allow_render=allow_render,
                                        render_first=render_first,
-                                       keep_html=raw)
+                                       keep_html=raw or links)
     # Record what happened, per domain. A cache hit is not evidence about the
     # site -- it says the cache worked, which is a different fact -- so only
     # live attempts count.
@@ -227,7 +234,7 @@ def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
                 # standing on when it gave up; a hardcoded None here would
                 # throw that away and leave a tier-only consumer with nothing.
                 "tier": result.get("tier"), "cached": result.get("cached", False)}
-    return {
+    row = {
         "url": url,
         "content": result["text"],
         "content_type": MIME.get(result.get("content_type", ""), "text/html"),
@@ -243,6 +250,14 @@ def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
         # client can distinguish did-not-ask from asked-and-got-nothing.
         **({"html": result.get("html", "")} if raw else {}),
     }
+    if links:
+        # Falls back to the prose on an empty result rather than handing
+        # back nothing: a page whose anchors could not be parsed is still
+        # a page the caller asked to read.
+        annotated = fx.links(result.get("html", ""), url, max_chars=max_chars)
+        if annotated:
+            row["content"] = annotated
+    return row
 
 
 @app.get("/health")
@@ -363,12 +378,33 @@ def fetch_urls(body: FetchBody, background: BackgroundTasks):
     rows = [_extract_row(u, body.max_chars, allow_ocr=True,
                          allow_render=body.render != "never",
                          render_first=body.render == "always",
-                         raw=body.raw)
+                         raw=body.raw, links=body.links)
             for u in body.urls if u]
     # Indexed AFTER the response, not during it. Embedding costs ~250ms a page
     # and the caller should not wait for work they did not ask for.
-    background.add_task(index_fetched, _harvest(rows))
+    # Not indexed when links were kept: the corpus is prose to match
+    # against later, and this output has markdown link syntax woven
+    # through it. Feeding it in makes every future match slightly worse.
+    if not body.links:
+        background.add_task(index_fetched, _harvest(rows))
     return rows
+
+
+@app.post("/extract-with-links")
+def fetch_with_links(body: FetchBody, background: BackgroundTasks):
+    """`/fetch` with the anchors kept. Same verb, different output shape.
+
+    A route rather than only a parameter for the same reason `/extract` is
+    still here: it is what existing callers were written against, and renaming
+    for tidiness is a poor trade. `links: true` on /fetch does exactly this.
+
+    Note this path does not use the page cache -- keeping the source HTML
+    bypasses it, because caching twenty times the bytes to serve a minority of
+    requests is the wrong trade for a cache whose whole point is many pages
+    cheaply.
+    """
+    body.links = True
+    return fetch_urls(body, background)
 
 
 @app.post("/search-and-fetch")

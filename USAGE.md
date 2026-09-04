@@ -130,6 +130,29 @@ than 8000, because this path multiplies by the result count.
 
 `/extract` and `/search-and-extract` are aliases of these two.
 
+### `POST /extract-with-links`
+
+`/fetch` with the anchors kept, rendered as markdown links and resolved to
+absolute URLs. Identical to passing `links: true` to `/fetch`; it exists as a
+route because callers were written against that name.
+
+```bash
+curl -X POST http://localhost:8787/extract-with-links \
+  -H 'Content-Type: application/json' \
+  -d '{"urls": ["https://en.wikipedia.org/wiki/Hyperlink"], "max_chars": 8000}'
+```
+
+Use it for link discovery — crawl frontiers, "what does this index page point
+at" — where the outbound links *are* the payload. For reading prose, use
+`/fetch`: the article extractors drop navigation on purpose, and this puts it
+back.
+
+Two consequences worth knowing. This path **does not use the page cache**,
+because keeping the source HTML bypasses it — caching 47x the bytes to serve a
+minority of requests is the wrong trade. And results are **not added to the
+corpus**, since text with markdown link syntax woven through it would make every
+later corpus match slightly worse.
+
 ### `GET /corpus/search`
 
 ```bash
