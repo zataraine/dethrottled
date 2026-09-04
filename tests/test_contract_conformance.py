@@ -150,18 +150,27 @@ class ContractTests(unittest.TestCase):
                     {"urls": [PLAIN_URL], "max_chars": 200, "render": mode})
                 self.assertEqual(status, 200, "render=%r rejected: %s" % (mode, payload))
 
-    def test_render_rejects_the_wrong_type(self):
-        """The exact drift that broke every fetch through the MCP bridge.
+    def test_render_accepts_the_documented_bool_alias(self):
+        """The drift that broke every fetch through the MCP bridge.
 
-        One engine typed render as bool and the other as str. Whichever type an
-        engine takes, the OTHER type must be a loud 400 -- never a 200 that
-        quietly does something else, and never a 500.
+        One engine typed render as bool and the other as str, so the same body
+        worked against one and 422'd against the other. The fix is not to pick a
+        winner and break the losing engine's callers -- it is that BOTH accept
+        BOTH spellings, with the enum canonical and the bool a documented alias.
+
+        This asserts the property that actually matters: whichever spelling a
+        caller reaches for, every engine takes it. An engine that accepts only
+        one of them fails here, in either direction.
         """
-        status, payload = _post(
-            "/fetch", {"urls": [PLAIN_URL], "max_chars": 200, "render": False})
-        self.assertIn(
-            status, REJECTED,
-            "a boolean render must be rejected, got %s: %s" % (status, payload))
+        for value in (True, False):
+            with self.subTest(render=value):
+                status, payload = _post(
+                    "/fetch",
+                    {"urls": [PLAIN_URL], "max_chars": 200, "render": value})
+                self.assertEqual(
+                    status, 200,
+                    "render=%r must be accepted as the documented alias, got %s: %s"
+                    % (value, status, payload))
 
     def test_limit_is_the_result_count_field(self):
         """One name for result count. Not num_results, not max_items, not both."""
@@ -208,46 +217,64 @@ class ContractTests(unittest.TestCase):
     def test_fresh_is_honoured_or_rejected_but_never_ignored(self):
         """The failure that invalidated an entire external benchmark.
 
-        Asserted on a declared cache signal rather than on timing, because a
-        timing assertion on a network call is a flake generator.
-
-        This test SKIPS rather than passes when the engine gives no trustworthy
-        signal, and that distinction was learned the hard way: an earlier
-        version of it read the per-row `cached` flag and scored a PASS for an
-        engine whose own source says it ignores `fresh`. That flag reports
-        whether the PAGE was cached, not whether the search result set was
-        replayed -- so the test was reading a real field that answered a
+        Checked on /fetch rather than /search because the page cache is where a
+        row's `cached` flag is truthful. An earlier version of this test read
+        that flag on SEARCH rows and scored a PASS for an engine whose own
+        source said it ignored `fresh` -- the flag was real, it just answered a
         different question. A false pass is worse than no test, because it
-        retires the suspicion that would otherwise have found the bug.
+        retires the suspicion that would have found the bug.
 
-        Hence the contract requirement: a response must say, at the envelope
-        level, whether it came from cache. Without that no caller can verify
-        `fresh` did anything -- which is precisely how a careful external agent
-        came to benchmark a parameter that does nothing.
+        Warm the cache, confirm it is warm, then ask for fresh and require that
+        the answer is not a cached one. A 400/422 is equally a pass: an engine
+        entitled to refuse a cache bypass may do so, it just may not pretend.
         """
-        body = {"query": "conformance probe okapi bm25 ranking function", "limit": 3,
-                "fresh": True}
-        first_status, first = _post("/search", body)
-        if first_status in REJECTED:
-            return  # an honest refusal is a pass
-        self.assertEqual(first_status, 200)
+        body = {"urls": [PLAIN_URL], "max_chars": 300}
 
-        second_status, second = _post("/search", body)
-        self.assertEqual(second_status, 200)
+        _post("/fetch", body)                      # warm it
+        status, warm = _post("/fetch", body)       # and confirm it is warm
+        self.assertEqual(status, 200)
+        warm_rows = _rows(warm)
+        self.assertTrue(warm_rows)
+        if warm_rows[0].get("cached") is not True:
+            self.skipTest(
+                "engine did not report a cache hit on a repeated fetch, so it "
+                "exposes no signal this test can hold `fresh` to")
 
-        # Envelope-level cache signal, which is what the contract requires.
-        envelope = second if isinstance(second, dict) else {}
-        if "cached" in envelope:
-            self.assertFalse(
-                envelope["cached"],
-                "fresh=true was accepted but the result set came from cache -- "
-                "honour the field or reject it")
-            return
+        status, fresh = _post("/fetch", dict(body, fresh=True))
+        if status in REJECTED:
+            return  # an honest refusal
+        self.assertEqual(status, 200)
+        fresh_rows = _rows(fresh)
+        self.assertTrue(fresh_rows)
+        self.assertIsNot(
+            fresh_rows[0].get("cached"), True,
+            "fresh=true was accepted but the answer still came from cache -- "
+            "honour the field or reject it")
 
-        self.skipTest(
-            "engine declares no envelope-level `cached` field, so `fresh` "
-            "cannot be verified by a caller. Per-row `cached` is not a "
-            "substitute: it reports page-cache state, not result-set replay.")
+    def test_every_verb_answers_with_a_bare_list(self):
+        """One response shape, so `rows = response.json()` is always right.
+
+        Added after a dual-engine check found search_and_fetch answering with
+        {"query": ..., "results": [...]} on one engine and a bare list on the
+        other. Nothing errored: a client reading the list got a dict instead and
+        would fail somewhere later, far from the cause.
+
+        The suite's own _rows() helper accepts both shapes, which is why this
+        went unnoticed -- a tolerant helper is right for a client and wrong for
+        the test that defines the contract.
+        """
+        for path, body in (
+            ("/search", {"query": "okapi bm25", "limit": 2}),
+            ("/fetch", {"urls": [PLAIN_URL], "max_chars": 200}),
+            ("/search-and-fetch", {"query": "okapi bm25", "limit": 1, "max_chars": 200}),
+        ):
+            with self.subTest(path=path):
+                status, payload = _post(path, body)
+                self.assertEqual(status, 200, payload)
+                self.assertIsInstance(
+                    payload, list,
+                    "%s answered with %s, not a list of rows"
+                    % (path, type(payload).__name__))
 
     # ---- policy is declared, not discovered ------------------------------
 

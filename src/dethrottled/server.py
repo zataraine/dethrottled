@@ -102,9 +102,11 @@ class SearchBody(BaseModel):
     max_items: int | None = None
     categories: str = ""
     engines: str = ""
-    # Accepted and ignored. There is no cache-bypass cost worth exposing and no
-    # profile ladder to select, but plenty of clients are written against APIs
-    # that have both -- accepting the fields costs nothing and saves an edit.
+    # Honoured: bypasses the search cache for this call. It was accepted and
+    # ignored until an external benchmark set it, measured this engine's cache
+    # against another engine doing live work, and published the wrong
+    # conclusion. Accepting a field costs nothing right up until someone
+    # believes it.
     fresh: bool = False
     profile: str = "balanced"
 
@@ -133,9 +135,21 @@ class FetchBody(BaseModel):
     # auto    escalate to the renderer only when cheaper tiers fail (default)
     # always  try the renderer FIRST, for a page you know needs a browser
     # never   stay on the cheap local tiers
-    render: str = "auto"
+    # auto | always | never. A bool is also accepted and mapped, because
+    # callers were written against one -- and because typing this field
+    # differently on two engines is what returned 422 on every fetch through a
+    # bridge for a day. The enum is canonical; True means always, False auto.
+    render: str | bool = "auto"
+    # text   article prose (default)
+    # links  prose with anchors kept as markdown, for link discovery
+    # html   the source, for callers doing their own parsing
+    #
+    # Replaces the raw/links booleans, which could contradict each other and
+    # left a caller no way to say "either one" without knowing which won.
+    format: str = "text"
     # The prose is the point; `raw` is for callers doing their own parsing, and
-    # is the only reason this is a distinct verb rather than a rename.
+    # is the only reason this is a distinct verb rather than a rename. Kept
+    # because callers send it; `format` wins when both appear.
     raw: bool = False
     # Keep the anchors, rendered as markdown links. For callers doing link
     # discovery rather than reading: an index page's VALUE is its outbound
@@ -151,7 +165,11 @@ class FetchBody(BaseModel):
 
 
 class SearchFetchBody(SearchBody):
-    render: str = "auto"
+    # auto | always | never. A bool is also accepted and mapped, because
+    # callers were written against one -- and because typing this field
+    # differently on two engines is what returned 422 on every fetch through a
+    # bridge for a day. The enum is canonical; True means always, False auto.
+    render: str | bool = "auto"
     raw: bool = False
     # 3000. Leaner than /extract on purpose: this path multiplies by the number
     # of results, and it is the ranking path, where measurement says less text
@@ -220,11 +238,15 @@ MIME = {
 def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
                  page_budget: float | None = None, allow_render: bool = True,
                  raw: bool = False, render_first: bool = False,
-                 links: bool = False) -> dict:
+                 links: bool = False, fresh: bool = False) -> dict:
     # allow_ocr is the one-URL-versus-many split. OCR costs about 1.4s a page,
     # which is worth it for a page somebody asked for by name and is not worth
     # it multiplied across a page of search results.
-    result = fetcher.fetch_and_extract(url, max_chars=max_chars, cache=cache(),
+    # fresh means fresh. The cache is a parameter, so bypassing it is simply
+    # not passing one -- and a field that says it bypasses the cache must, or
+    # a caller cannot tell what they measured.
+    result = fetcher.fetch_and_extract(url, max_chars=max_chars,
+                                       cache=None if fresh else cache(),
                                        allow_ocr=allow_ocr,
                                        page_budget=page_budget,
                                        allow_render=allow_render,
@@ -266,6 +288,10 @@ def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
         annotated = fx.links(result.get("html", ""), url, max_chars=max_chars)
         if annotated:
             row["content"] = annotated
+    elif raw and result.get("html"):
+        # format=html asked for the source, so the source is the content. It is
+        # still echoed in `html` for callers written against raw=true.
+        row["content"] = result["html"][:max_chars]
     return row
 
 
@@ -332,6 +358,31 @@ def v2_capabilities():
         "ranking": ranker.available(),
         "quotas": None,
         "keys_required": False,
+
+        # Policy, so a caller can choose an engine on what it will and will not
+        # do rather than discovering it from a refusal.
+        #
+        # robots.txt is honoured at every tier and cached, which is a real
+        # difference from engines that do not check it: some URLs that fetch
+        # elsewhere will be refused here, and that is the intended behaviour
+        # rather than a gap.
+        "respects_robots": True,
+        # Every tier here is free and keyless, so a call costs a caller nothing
+        # and no budget can be exhausted on their behalf.
+        "metered_tiers": False,
+        # The external reader is the only tier that would send a URL to a third
+        # party, and it is off unless explicitly enabled.
+        "leaves_network": bool(fetcher.ENABLE_JINA),
+        # What `fresh` bypasses.
+        "cache_ttl_seconds": 6 * 3600,
+
+        # Beyond the core contract fields, which every engine takes. A client
+        # sends core + whatever is listed here, so one client works against
+        # engines that differ without knowing which it is talking to.
+        "optional_fields": {
+            "search": ["categories", "rank", "rerank", "corpus", "recency"],
+            "fetch": ["raw", "links"],
+        },
     }
 
 
@@ -350,7 +401,10 @@ def _ranked(body) -> tuple:
     limit = body.limit or body.max_items or body.num_results
     pool = limit * 3 if (body.rank or body.rerank) else limit
     rows, meta = fs.search(body.query, max_items=pool,
-                           categories=body.categories, cache=cache())
+                           categories=body.categories,
+                           # Same again: fresh bypasses the six-hour search
+                           # cache rather than being accepted and ignored.
+                           cache=None if body.fresh else cache())
     rows, stages = ranker.apply(
         rows, body.query, bm25=body.rank, rerank=body.rerank,
         corpus=body.corpus, recency=body.recency)
@@ -384,10 +438,18 @@ def _harvest(rows) -> list:
 @app.post("/extract")            # alias, for callers written against the old name
 def fetch_urls(body: FetchBody, background: BackgroundTasks):
     # Named URLs: try hard, OCR included.
+    # format is the contract's single name; raw/links remain accepted for
+    # callers written against them, and format wins when both are given.
+    # Both spellings converge here, so nothing downstream has to know which
+    # arrived.
+    mode = ("always" if body.render else "auto") if isinstance(body.render, bool) else body.render
+    want_html = body.format == "html" or (body.format == "text" and body.raw)
+    want_links = body.format == "links" or (body.format == "text" and body.links)
     rows = [_extract_row(u, body.max_chars, allow_ocr=True,
-                         allow_render=body.render != "never",
-                         render_first=body.render == "always",
-                         raw=body.raw, links=body.links)
+                         allow_render=mode != "never",
+                         render_first=mode == "always",
+                         raw=want_html, links=want_links,
+                         fresh=body.fresh)
             for u in body.urls if u]
     # Indexed AFTER the response, not during it. Embedding costs ~250ms a page
     # and the caller should not wait for work they did not ask for.
@@ -425,11 +487,12 @@ def search_and_fetch(body: SearchFetchBody, background: BackgroundTasks):
         merged = _search_row(row, meta, index)
         # Search results: no OCR. N results times 1.4s a page is a different
         # trade from one URL somebody asked for.
+        sf_mode = ("always" if body.render else "auto") if isinstance(body.render, bool) else body.render
         extracted = _extract_row(row.get("url", ""), body.max_chars,
                                  allow_ocr=False,
                                  page_budget=fetcher.PAGE_BUDGET_BULK,
-                                 allow_render=body.render != "never",
-                                 render_first=body.render == "always",
+                                 allow_render=sf_mode != "never",
+                                 render_first=sf_mode == "always",
                                  raw=body.raw)
         merged.update({k: v for k, v in extracted.items() if k != "url"})
         out.append(merged)
