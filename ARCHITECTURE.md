@@ -107,6 +107,31 @@ median) — curl-impersonate is C. It is a quick fallback, not a slow one.
 hand-rolled worker) and probes once, because guessing wrong costs a *silently
 dead tier* rather than a loud error.
 
+### The renderer is tuned down, on purpose
+
+`docker/crawl4ai/config.yml` is a copy of the image's own config with three
+values changed, mounted over `/app/config.yml` by the compose file:
+
+| setting | image default | here | why |
+| --- | --- | --- | --- |
+| `pool.max_pages` | 40 | **8** | forty concurrent Chromium tabs is not something a small machine can afford, and nothing here fetches forty pages at once |
+| `pool.idle_ttl_sec` | 300 | **180** | how long a pooled browser sits unused before the janitor closes it |
+| `memory_threshold_percent` | 95.0 | **80.0** | the point at which the pool sheds browsers. At 95% on a shared host, everything *else* is already in trouble first |
+
+The defaults assume a machine given over to crawling. This project claims to run
+on a single-board computer alongside whatever else lives there, and those two
+assumptions do not fit.
+
+One thing no setting controls: Crawl4AI keeps a **permanent** browser from
+startup to shutdown. It sits outside the pool, so the janitor never reaps it and
+`idle_ttl_sec` does not apply to it. Expect one warm browser for the life of the
+container — roughly 150-250MB — however low the pool limits go. That is the
+price of a fast first render, and it is a floor, not a leak.
+
+Because the config is a copy, it is tied to the crawl4ai digest pinned in
+`docker-compose.yml`. Moving that pin means diffing this file against the new
+image's default and re-applying the three changes.
+
 There is **no relay tier**: every option needs an account, a third party who
 learns your URLs, or an address range that is pre-blocklisted.
 

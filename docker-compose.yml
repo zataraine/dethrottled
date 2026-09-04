@@ -90,6 +90,12 @@ services:
       # nothing outside this compose project can reach it either way -- but set
       # CRAWL4AI_TOKEN in .env anyway if you would rather not run a default.
       CRAWL4AI_API_TOKEN: "${CRAWL4AI_TOKEN:-dethrottled-compose-local}"
+    volumes:
+      # Tuned copy of the image default: a smaller browser pool, a shorter idle
+      # cutoff, and a lower memory ceiling. See the header of that file for why
+      # each one moved. Without it the pool will open up to forty concurrent
+      # tabs and not start shedding them until the host is at 95% memory.
+      - ./docker/crawl4ai/config.yml:/app/config.yml:ro
     expose:
       - "11235"
     # Chromium needs more shared memory than Docker's 64MB default. Renders
