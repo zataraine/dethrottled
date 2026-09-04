@@ -392,9 +392,13 @@ def v2_capabilities():
         # Beyond the core contract fields, which every engine takes. A client
         # sends core + whatever is listed here, so one client works against
         # engines that differ without knowing which it is talking to.
+        # Every field accepted beyond the core, and nothing that is not. An
+        # under-declared field is as bad as an over-declared one: a client that
+        # trusts this drops a refinement the engine would have used.
         "optional_fields": {
-            "search": ["categories", "rank", "rerank", "corpus", "recency"],
-            "fetch": ["raw", "links"],
+            "search": ["categories", "engines", "profile", "rank", "rerank",
+                       "corpus", "recency"],
+            "fetch": ["profile", "raw", "links"],
         },
     }
 

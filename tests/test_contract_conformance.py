@@ -289,6 +289,43 @@ class ContractTests(unittest.TestCase):
             with self.subTest(field=field):
                 self.assertIn(field, payload, "capabilities does not declare %r" % field)
 
+    def test_declared_optional_fields_are_actually_accepted(self):
+        """optional_fields is a promise, so it has to be kept.
+
+        Clients use this to decide what to send, which makes a wrong entry
+        worse than no entry: declare a field the engine rejects and every
+        client that trusts the declaration starts getting 422s. The reverse
+        error -- accepting a field without declaring it -- is quieter but costs
+        just as much, because a careful client drops a refinement the engine
+        would have used. Both were found here: one engine declared five fields
+        while accepting seven.
+        """
+        status, capabilities = _get("/v2/capabilities")
+        if status != 200 or not isinstance(capabilities, dict):
+            self.skipTest("no /v2/capabilities")
+        declared = capabilities.get("optional_fields")
+        if not declared:
+            self.skipTest("engine declares no optional_fields")
+
+        samples = {
+            "categories": "news", "engines": "auto", "profile": "balanced",
+            "language": "en", "rank": True, "rerank": False, "corpus": 0,
+            "recency": 0.0, "raw": False, "links": False,
+        }
+        for verb, path, base in (
+            ("search", "/search", {"query": "okapi bm25", "limit": 2}),
+            ("fetch", "/fetch", {"urls": [PLAIN_URL], "max_chars": 200}),
+        ):
+            for field in declared.get(verb, []):
+                if field not in samples:
+                    continue
+                with self.subTest(verb=verb, field=field):
+                    code, payload = _post(path, dict(base, **{field: samples[field]}))
+                    self.assertEqual(
+                        code, 200,
+                        "%s declares %r for %s but rejected it: %s"
+                        % (verb, field, verb, payload))
+
     def test_robots_claim_matches_behaviour(self):
         """The test that turns a documentation lie into a build failure.
 
