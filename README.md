@@ -47,7 +47,7 @@ and reproducible from scripts in this repository.
 | endpoint | what it does |
 | --- | --- |
 | `POST /search` | a query → ranked results |
-| `POST /fetch` | URLs → their text (`raw: true` for the source) |
+| `POST /fetch` | URLs → their text (`format: "html"` for the source, `"links"` for its anchors) |
 | `POST /search-and-fetch` | both in one call, fetching only the winners |
 
 Plus `/corpus/search` (query what you've already fetched, no network),
@@ -61,8 +61,8 @@ it is genuinely useful, that's the `render` parameter — `always` puts the
 renderer first, `never` keeps to the cheap tiers.
 
 `/extract` and `/search-and-extract` remain as aliases. So does
-`/extract-with-links`, which is `/fetch` with `links: true`: the anchors kept and
-rendered as markdown, resolved to absolute URLs. For link discovery rather than
+`/extract-with-links`, which is `/fetch` with `format: "links"`: the anchors kept
+and rendered as markdown, resolved to absolute URLs. For link discovery rather than
 reading — an index page's value is what it points at, and the article
 extractors drop that by design.
 

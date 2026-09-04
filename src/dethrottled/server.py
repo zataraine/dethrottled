@@ -396,9 +396,14 @@ def v2_capabilities():
         # under-declared field is as bad as an over-declared one: a client that
         # trusts this drops a refinement the engine would have used.
         "optional_fields": {
-            "search": ["categories", "engines", "profile", "rank", "rerank",
+            # Only fields this engine actually honours. `engines` and
+            # `profile` are accepted for compatibility but change nothing --
+            # engines would reach one of five sources, profile is read
+            # nowhere -- and a declared field is a promise that sending it
+            # does something.
+            "search": ["categories", "rank", "rerank",
                        "corpus", "recency"],
-            "fetch": ["profile", "raw", "links"],
+            "fetch": ["raw", "links"],
         },
     }
 

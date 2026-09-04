@@ -23,6 +23,21 @@ this service fetches arbitrary URLs for anyone who can reach it.
 Two verbs and one combination. There is no `/crawl`: rendering is a `render`
 parameter, not an endpoint.
 
+**Unknown fields are rejected, not ignored.** Every request model is
+`extra="forbid"`, so a mistyped or unsupported field is a `422` naming it
+rather than a silently-dropped value and a default you did not ask for.
+
+**All three verbs return a bare JSON list.** Not an object wrapping one — which
+is what lets a client handle `/search`, `/fetch` and `/search-and-fetch` with
+the same code.
+
+**`GET /v2/capabilities` says what this install can do**, including
+`optional_fields`: what it accepts *beyond* the core `query` / `urls` / `limit`
+/ `max_chars` / `format` / `render`. A field is listed there only if sending it
+changes something. A client that sends the core plus whatever an engine
+declares works against any engine implementing this contract, without knowing
+which one it is talking to.
+
 ### `POST /search`
 
 ```json
@@ -32,14 +47,16 @@ parameter, not an endpoint.
 | field | default | meaning |
 | --- | --- | --- |
 | `query` | — | required |
-| `num_results` | `8` | how many rows to return |
+| `limit` | `8` | how many rows to return. The contract name, and the one to use |
+| `num_results` | `8` | the older name for `limit`, still accepted |
 | `categories` | `""` | passed to SearXNG |
 | `rank` | `true` | BM25. Free, so it is on |
 | `rerank` | `false` | cross-encoder over the top 40. Needs `[rerank]` |
 | `corpus` | `0` | merge this many already-fetched passages into the pool |
 | `recency` | `0.0` | 0 = pure relevance, 1 = freshness dominates |
-| `max_items` | unset | when set, overrides `num_results` -- for callers already using that name |
-| `engines`, `fresh`, `profile` | -- | accepted and **silently ignored**. There's no cache-bypass cost worth exposing and no profile ladder to select, but plenty of clients are written against APIs that have both, so accepting the fields costs nothing and saves an edit |
+| `max_items` | unset | another accepted spelling of `limit`. Precedence is `limit`, then `max_items`, then `num_results` |
+| `fresh` | `false` | **honoured** — bypasses the six-hour search cache for this call |
+| `engines`, `profile` | -- | accepted so that clients written against APIs with them do not need an edit, but they change nothing here and are deliberately **not** listed in `optional_fields`. `engines` would reach only the SearXNG source, leaving four others unaffected; there is no profile ladder to select |
 
 Each row:
 
@@ -79,9 +96,12 @@ fixed cost by the result count for no added information.
 | --- | --- | --- |
 | `urls` | `[]` | one or many |
 | `max_chars` | `8000` | per document |
-| `render` | `"auto"` | `auto`, `always` or `never` — see below |
-| `raw` | `false` | also return the page source |
-| `fresh`, `profile` | -- | accepted and **silently ignored**, same compatibility reasoning as `/search` |
+| `render` | `"auto"` | `auto`, `always` or `never` — see below. `true`/`false` are accepted as aliases for `always`/`auto` |
+| `format` | `"text"` | `text`, `links` (prose with anchors kept as markdown) or `html` (the source). The contract name |
+| `raw` | `false` | the older spelling of `format: "html"`, still accepted |
+| `links` | `false` | the older spelling of `format: "links"`, still accepted |
+| `fresh` | `false` | **honoured** — bypasses the cache for this call |
+| `profile` | -- | accepted for compatibility, changes nothing, not declared in `optional_fields` |
 
 ```json
 [{"url": "...", "content": "...", "content_type": "text/html",
