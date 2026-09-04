@@ -235,6 +235,19 @@ MIME = {
 }
 
 
+def _render_mode(render) -> str:
+    """auto | always | never, whichever spelling arrived.
+
+    The enum is canonical and a bool is a documented alias, because this field
+    was typed differently on two engines and the mismatch returned 422 on every
+    fetch through a bridge for a day. Accepting both on both is what makes them
+    agree without breaking either engine's callers.
+    """
+    if isinstance(render, bool):
+        return "always" if render else "auto"
+    return render
+
+
 def _extract_row(url: str, max_chars: int, allow_ocr: bool = True,
                  page_budget: float | None = None, allow_render: bool = True,
                  raw: bool = False, render_first: bool = False,
@@ -442,7 +455,7 @@ def fetch_urls(body: FetchBody, background: BackgroundTasks):
     # callers written against them, and format wins when both are given.
     # Both spellings converge here, so nothing downstream has to know which
     # arrived.
-    mode = ("always" if body.render else "auto") if isinstance(body.render, bool) else body.render
+    mode = _render_mode(body.render)
     want_html = body.format == "html" or (body.format == "text" and body.raw)
     want_links = body.format == "links" or (body.format == "text" and body.links)
     rows = [_extract_row(u, body.max_chars, allow_ocr=True,
@@ -487,7 +500,7 @@ def search_and_fetch(body: SearchFetchBody, background: BackgroundTasks):
         merged = _search_row(row, meta, index)
         # Search results: no OCR. N results times 1.4s a page is a different
         # trade from one URL somebody asked for.
-        sf_mode = ("always" if body.render else "auto") if isinstance(body.render, bool) else body.render
+        sf_mode = _render_mode(body.render)
         extracted = _extract_row(row.get("url", ""), body.max_chars,
                                  allow_ocr=False,
                                  page_budget=fetcher.PAGE_BUDGET_BULK,
