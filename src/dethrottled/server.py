@@ -101,6 +101,11 @@ class SearchBody(BaseModel):
     num_results: int = 8
     max_items: int | None = None
     categories: str = ""
+    # Honoured, by the SearXNG source. Worth about as much as translating the
+    # query: with it a French query returns 108 rows and 57 useful against 66
+    # and 28 without. The other sources are English-centric and take no such
+    # hint, so this biases the pool rather than constraining it.
+    language: str = ""
     engines: str = ""
     # Honoured: bypasses the search cache for this call. It was accepted and
     # ignored until an external benchmark set it, measured this engine's cache
@@ -401,7 +406,7 @@ def v2_capabilities():
             # engines would reach one of five sources, profile is read
             # nowhere -- and a declared field is a promise that sending it
             # does something.
-            "search": ["categories", "rank", "rerank",
+            "search": ["categories", "language", "rank", "rerank",
                        "corpus", "recency"],
             "fetch": ["raw", "links"],
         },
@@ -424,6 +429,7 @@ def _ranked(body) -> tuple:
     pool = limit * 3 if (body.rank or body.rerank) else limit
     rows, meta = fs.search(body.query, max_items=pool,
                            categories=body.categories,
+                           language=body.language or None,
                            # Same again: fresh bypasses the six-hour search
                            # cache rather than being accepted and ignored.
                            cache=None if body.fresh else cache())

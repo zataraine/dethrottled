@@ -141,3 +141,67 @@ def test_render_always_puts_the_renderer_first(client):
         assert seen == {"render_first": False, "allow_render": False}
     finally:
         srv.fetcher.fetch_and_extract = original
+
+
+# -- what real clients actually send -----------------------------------------
+
+def test_search_accepts_language_and_forwards_it(monkeypatch):
+    """`language` reaches the engine, rather than being accepted and dropped.
+
+    It was neither for a while: the engine honoured it, the HTTP body did not
+    offer it, and once unknown fields became a 422 every client that sent it
+    broke outright. An OpenClaw plugin sends it on every native search.
+    """
+    seen = {}
+
+    def fake_search(query, **kw):
+        seen.update(kw)
+        return list(FAKE_ROWS), dict(FAKE_META)
+
+    monkeypatch.setattr(srv.fs, "search", fake_search)
+    monkeypatch.setattr(srv, "index_fetched", lambda *a, **k: 0)
+    c = TestClient(srv.app)
+
+    assert c.post("/search", json={"query": "q", "language": "fr"}).status_code == 200
+    assert seen.get("language") == "fr"
+
+
+def test_absent_language_is_not_forwarded_as_empty(monkeypatch):
+    """No language means no hint -- not an empty string to be interpreted."""
+    seen = {}
+
+    def fake_search(query, **kw):
+        seen.update(kw)
+        return list(FAKE_ROWS), dict(FAKE_META)
+
+    monkeypatch.setattr(srv.fs, "search", fake_search)
+    monkeypatch.setattr(srv, "index_fetched", lambda *a, **k: 0)
+    c = TestClient(srv.app)
+
+    assert c.post("/search", json={"query": "q"}).status_code == 200
+    assert seen.get("language") is None
+
+
+def test_the_openclaw_plugin_payload_is_accepted(client):
+    """The exact body that plugin sends, field for field.
+
+    Pinned as a whole rather than field by field because the failure was not
+    any one field being wrong -- it was the combination a real caller sends
+    going untested while each field looked defensible on its own.
+    """
+    body = {"query": "raspberry pi", "num_results": 5, "engines": "auto",
+            "language": "en", "fresh": False, "profile": "fast"}
+    assert client.post("/search", json=body).status_code == 200
+
+    fetch_body = {"urls": ["https://example.com"], "max_chars": 3000,
+                  "fresh": False, "profile": "fast"}
+    assert client.post("/fetch", json=fetch_body).status_code == 200
+
+
+def test_language_is_declared_because_it_is_honoured(client):
+    """Declared fields are promises. This one is kept; engines/profile are not
+    declared precisely because they are accepted and change nothing."""
+    declared = client.get("/v2/capabilities").json()["optional_fields"]
+    assert "language" in declared["search"]
+    assert "engines" not in declared["search"]
+    assert "profile" not in declared["search"]
