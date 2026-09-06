@@ -49,7 +49,7 @@ which one it is talking to.
 | `query` | — | required |
 | `limit` | `8` | how many rows to return. The contract name, and the one to use |
 | `num_results` | `8` | the older name for `limit`, still accepted |
-| `categories` | `""` | passed to SearXNG |
+| `categories` | `""` | e.g. `news`. Forwarded to the SearXNG source, which is one of five — the others contribute regardless, so on many queries the top results are unchanged. It tilts the pool, it does not select |
 | `language` | `""` | ISO 639-1, e.g. `fr`. Biases the SearXNG source toward that language — worth about as much as translating the query. The other sources are English-centric and take no such hint, so this tilts the pool rather than constraining it |
 | `rank` | `true` | BM25. Free, so it is on |
 | `rerank` | `false` | cross-encoder over the top 40. Needs `[rerank]` |

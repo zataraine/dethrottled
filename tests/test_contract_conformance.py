@@ -289,6 +289,74 @@ class ContractTests(unittest.TestCase):
             with self.subTest(field=field):
                 self.assertIn(field, payload, "capabilities does not declare %r" % field)
 
+
+    # Several queries per field, deliberately. A refinement that reaches only
+    # one of an engine's sources moves some queries and not others -- measured
+    # here at 1 of 6 on one engine and 6 of 6 on another -- so a single query
+    # cannot tell "ignored" from "wired but outvoted".
+    REFINEMENT_QUERIES = (
+        "climate summit outcome",
+        "italian election result",
+        "tokyo stock exchange",
+        "submarine cable repair",
+        "german coalition talks",
+    )
+    REFINEMENTS = {
+        "categories": "news",
+        "language": "fr",
+    }
+
+    def test_declared_refinements_actually_refine(self):
+        """A declared field must change the answer somewhere, not just parse.
+
+        optional_fields tells a client what is worth sending. A field listed
+        there that changes nothing costs a round trip and, worse, lets the
+        caller believe a refinement was applied when it was not -- which is how
+        a benchmark gets built on a field the engine ignores.
+
+        Not passing `fresh`, deliberately: the cache is what makes a repeated
+        query stable enough to compare against, and it buys a second check for
+        free. An engine that honours a field but leaves it out of its cache key
+        returns the unrefined answer here and fails, which is correct -- that is
+        a real collision, and it has been found this way before.
+        """
+        status, capabilities = _get("/v2/capabilities")
+        if status != 200 or not isinstance(capabilities, dict):
+            self.skipTest("no /v2/capabilities")
+        declared = (capabilities.get("optional_fields") or {}).get("search") or []
+        testable = [f for f in declared if f in self.REFINEMENTS]
+        if not testable:
+            self.skipTest("engine declares no refinement this test can exercise")
+
+        def urls_for(body):
+            status, rows = _post("/search", body)
+            self.assertEqual(status, 200, "search failed for %r: %r" % (body, rows))
+            self.assertIsInstance(rows, list, "search must answer with a list")
+            return [r.get("url") for r in rows if isinstance(r, dict)]
+
+        for field in testable:
+            value = self.REFINEMENTS[field]
+            measured = 0
+            for query in self.REFINEMENT_QUERIES:
+                plain = {"query": query, "limit": 8}
+                first = urls_for(plain)
+                if not first or first != urls_for(plain):
+                    # Unstable, so a difference could not be attributed to the
+                    # field. Proves nothing either way; try the next query.
+                    continue
+                measured += 1
+                if first != urls_for(dict(plain, **{field: value})):
+                    break   # the field demonstrably does something
+            else:
+                if not measured:
+                    self.skipTest("no stable baseline for %r on any query" % field)
+                self.fail(
+                    "%r is declared in optional_fields but changed nothing across "
+                    "%d measurable queries. Either the engine ignores it -- in "
+                    "which case stop declaring it -- or it honours it but omits "
+                    "it from the cache key, in which case those requests were "
+                    "served the answer to a different question." % (field, measured))
+
     def test_declared_optional_fields_are_actually_accepted(self):
         """optional_fields is a promise, so it has to be kept.
 
