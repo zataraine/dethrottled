@@ -38,6 +38,7 @@ import os
 import unittest
 import urllib.error
 import urllib.request
+from typing import ClassVar
 
 BASE = os.environ.get("ENGINE_URL", "").rstrip("/")
 KEY = os.environ.get("ENGINE_KEY", "")
@@ -301,7 +302,7 @@ class ContractTests(unittest.TestCase):
         "submarine cable repair",
         "german coalition talks",
     )
-    REFINEMENTS = {
+    REFINEMENTS: ClassVar[dict[str, str]] = {
         "categories": "news",
         "language": "fr",
     }
